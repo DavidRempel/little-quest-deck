@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Quest Deck</title>
+<style>
+:root {
+  --bg: #171513;
+  --panel: #24201c;
+  --panel2: #302a24;
+  --text: #f4ead8;
+  --muted: #b9a98f;
+  --gold: #e2b45c;
+  --red: #d96b5f;
+  --green: #83b36b;
+  --blue: #6fa9d8;
+  --purple: #b284d8;
+  --border: #4b4035;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #2a231d 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+button {
+  border: 1px solid var(--border);
+  background: #3a3128;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
+}
+button:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-1px); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.app { max-width: 1180px; margin: 0 auto; padding: 24px; }
+.header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
+.subtitle { color: var(--muted); max-width: 650px; line-height: 1.5; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; color: var(--muted); }
+.stat strong { color: var(--text); }
+.grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; }
+.panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
+.panel h2 { margin: 0 0 12px; font-size: 1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.12em; }
+.monsters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.monster { background: var(--panel2); border: 2px solid var(--border); border-radius: 16px; padding: 14px; min-height: 190px; display: flex; flex-direction: column; gap: 8px; }
+.monster.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(226,180,92,0.18); }
+.monster .name { font-size: 1.15rem; font-weight: 800; }
+.monster .type { color: var(--muted); font-size: 0.85rem; }
+.target-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
+.target { background: rgba(0,0,0,0.18); border-radius: 10px; padding: 7px; text-align: center; font-size: 0.78rem; color: var(--muted); }
+.target strong { display: block; color: var(--text); font-size: 1.1rem; }
+.hand { display: flex; flex-wrap: wrap; gap: 10px; min-height: 150px; }
+.card { width: 88px; height: 124px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; }
+.card.selected { outline: 4px solid var(--gold); transform: translateY(-5px); }
+.card .num { font-size: 2rem; font-weight: 900; }
+.card .suit { font-weight: 900; text-transform: uppercase; font-size: 0.8rem; }
+.card.red { background: linear-gradient(160deg, #ffe3dd, #d9877a); }
+.card.green { background: linear-gradient(160deg, #e8f4d4, #9ec177); }
+.card.blue { background: linear-gradient(160deg, #e0eef9, #81afd3); }
+.card.purple { background: linear-gradient(160deg, #eee0f9, #b891d7); }
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
+.relics { display: flex; flex-wrap: wrap; gap: 8px; }
+.relic { border: 1px solid var(--border); background: #1f1b18; border-radius: 999px; padding: 8px 10px; font-size: 0.85rem; color: var(--muted); }
+.log { height: 260px; overflow: auto; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 12px; color: var(--muted); line-height: 1.45; font-size: 0.92rem; }
+.log p { margin: 0 0 8px; }
+.upgrades { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 18px; z-index: 10; }
+.upgrades.open { display: flex; }
+.upgrade-box { max-width: 850px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 22px; padding: 20px; }
+.upgrade-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+.upgrade { text-align: left; min-height: 150px; background: var(--panel2); }
+.upgrade strong { display: block; color: var(--gold); margin-bottom: 8px; font-size: 1.05rem; }
+.footer-actions { display: flex; gap: 10px; margin-top: 12px; }
+.game-over { font-size: 1.2rem; color: var(--gold); font-weight: 800; }
+@media (max-width: 900px) { .grid, .monsters, .upgrade-cards { grid-template-columns: 1fr; } .stats { justify-content: flex-start; } .actions { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div>
+      <h1>Little Quest Deck</h1>
+      <div class="subtitle">A tiny Dragonwood-ish roguelite prototype. Pick a monster, choose cards, then Strike, Sneak, or Blast. Beat 8 encounters and survive the boss.</div>
+    </div>
+    <div class="stats">
+      <div class="stat">HP <strong id="hp"></strong></div>
+      <div class="stat">Encounter <strong id="encounter"></strong></div>
+      <div class="stat">Deck <strong id="deckCount"></strong></div>
+      <div class="stat">Discards <strong id="discardCount"></strong></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <main class="panel">
+      <h2>Monster Path</h2>
+      <div class="monsters" id="monsters"></div>
+      <h2 style="margin-top:18px;">Adventurer Hand</h2>
+      <div class="hand" id="hand"></div>
+      <div class="actions">
+        <button class="action-btn" id="strikeBtn">Strike <small>sum selected cards + sword</small></button>
+        <button class="action-btn" id="sneakBtn">Sneak <small>longest run × 3 + cloak</small></button>
+        <button class="action-btn" id="blastBtn">Blast <small>same color × 4 + wand</small></button>
+      </div>
+      <div class="footer-actions">
+        <button id="drawBtn">Draw to 5</button>
+        <button id="restartBtn">Restart Run</button>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <h2>Relics</h2>
+      <div class="relics" id="relics"></div>
+      <h2 style="margin-top:18px;">Run Log</h2>
+      <div class="log" id="log"></div>
+    </aside>
+  </div>
+</div>
+
+<div class="upgrades" id="upgradeModal">
+  <div class="upgrade-box">
+    <h2>Choose a reward</h2>
+    <div class="subtitle">Defeated monsters leave something useful behind.</div>
+    <div class="upgrade-cards" id="upgradeCards"></div>
+  </div>
+</div>
+
+<script>
+const colors = ['red', 'green', 'blue', 'purple'];
+const monsterNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
+const bosses = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
+const rewards = [
+  { name: 'Rusty Sword', text: '+2 Strike.', apply: s => s.mods.strike += 2 },
+  { name: 'Shadow Cloak', text: '+2 Sneak.', apply: s => s.mods.sneak += 2 },
+  { name: 'Apprentice Wand', text: '+2 Blast.', apply: s => s.mods.blast += 2 },
+  { name: 'Campfire Soup', text: 'Heal 3 HP now.', apply: s => s.hp = Math.min(s.maxHp, s.hp + 3) },
+  { name: 'Bigger Satchel', text: 'Max hand size +1.', apply: s => s.handSize += 1 },
+  { name: 'Lucky Pebble', text: '+1 to all approaches.', apply: s => { s.mods.strike++; s.mods.sneak++; s.mods.blast++; } },
+  { name: 'Soft Boots', text: 'Max HP +2 and heal 2.', apply: s => { s.maxHp += 2; s.hp += 2; } },
+  { name: 'Monster Manual', text: 'Future monsters are slightly easier.', apply: s => s.ease += 1 }
+];
+let state;
+function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push({n, color:c, id: crypto.randomUUID()})); return shuffle(deck); }
+function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
+function newMonster(level, boss=false) {
+  const base = boss ? 21 : 9 + level * 2;
+  const variance = () => Math.max(5, base + Math.floor(Math.random()*5) - 2 - state.ease);
+  return { id: crypto.randomUUID(), name: boss ? bosses[Math.floor(Math.random()*bosses.length)] : monsterNames[Math.floor(Math.random()*monsterNames.length)], boss, strike: variance(), sneak: variance(), blast: variance(), damage: boss ? 5 : Math.ceil(level/2)+1 };
+}
+function start() {
+  state = { hp: 14, maxHp: 14, encounter: 1, defeated: 0, deck: makeDeck(), discard: [], hand: [], selected: [], monsters: [], mods: {strike:0,sneak:0,blast:0}, relics: [], log: [], handSize: 5, ease: 0, gameOver: false };
+  fillMonsters(); drawToHand(); log('You step onto the forest path.'); render();
+}
+function fillMonsters() { while (state.monsters.length < 3 && state.defeated < 8) state.monsters.push(newMonster(state.encounter)); if (state.defeated >= 8 && state.monsters.length === 0) state.monsters.push(newMonster(9, true)); }
+function drawOne() { if (!state.deck.length) { state.deck = shuffle(state.discard); state.discard = []; log('The discard pile is shuffled back into the deck.'); } if (state.deck.length) state.hand.push(state.deck.pop()); }
+function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
+function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
+function score(mode) {
+  const cards = selectedCards(); if (!cards.length) return 0;
+  if (mode === 'strike') return cards.reduce((a,c)=>a+c.n,0) + state.mods.strike;
+  if (mode === 'sneak') {
+    const nums = [...new Set(cards.map(c=>c.n))].sort((a,b)=>a-b); let best=1, cur=1;
+    for (let i=1;i<nums.length;i++) { if (nums[i] === nums[i-1]+1) cur++; else cur=1; best=Math.max(best,cur); }
+    return best * 3 + cards.length + state.mods.sneak;
+  }
+  if (mode === 'blast') {
+    const counts = {}; cards.forEach(c => counts[c.color]=(counts[c.color]||0)+1);
+    return Math.max(...Object.values(counts)) * 4 + state.mods.blast;
+  }
+}
+function attack(mode) {
+  if (state.gameOver) return;
+  const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0];
+  state.targetId = monster.id;
+  const cards = selectedCards(); if (!cards.length) { log('Choose at least one card first.'); return; }
+  const total = score(mode); const target = monster[mode];
+  cards.forEach(c => state.discard.push(c));
+  state.hand = state.hand.filter(c => !state.selected.includes(c.id)); state.selected = [];
+  if (total >= target) {
+    log(`Success! ${modeName(mode)} ${total} beats ${monster.name}'s ${target}.`);
+    state.monsters = state.monsters.filter(m => m.id !== monster.id); state.defeated++; state.encounter++;
+    if (monster.boss) { state.gameOver = true; log('<span class="game-over">You beat the boss. Tiny victory parade.</span>'); render(); return; }
+    openRewards();
+  } else {
+    state.hp -= monster.damage;
+    log(`Oof. ${modeName(mode)} ${total} misses ${monster.name}'s ${target}. Take ${monster.damage} damage.`);
+    if (state.hp <= 0) { state.hp = 0; state.gameOver = true; log('<span class="game-over">Run over. The forest keeps your lunch money.</span>'); }
+  }
+  fillMonsters(); drawToHand(); render();
+}
+function modeName(m) { return m[0].toUpperCase()+m.slice(1); }
+function openRewards() {
+  const picks = shuffle([...rewards]).slice(0,3);
+  const wrap = document.getElementById('upgradeCards'); wrap.innerHTML = '';
+  picks.forEach(r => { const b=document.createElement('button'); b.className='upgrade'; b.innerHTML=`<strong>${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.name); document.getElementById('upgradeModal').classList.remove('open'); log(`Reward chosen: ${r.name}.`); fillMonsters(); drawToHand(); render(); }; wrap.appendChild(b); });
+  document.getElementById('upgradeModal').classList.add('open');
+}
+function renderMonsters() {
+  const el=document.getElementById('monsters'); el.innerHTML='';
+  state.monsters.forEach((m,i)=>{ if (!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':''); d.onclick=()=>{state.targetId=m.id; render();}; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="type">Damage ${m.damage}${m.boss?' · Final boss':''}</div><div class="target-row"><div class="target">Strike<strong>${m.strike}</strong></div><div class="target">Sneak<strong>${m.sneak}</strong></div><div class="target">Blast<strong>${m.blast}</strong></div></div>`; el.appendChild(d); });
+}
+function renderHand() {
+  const el=document.getElementById('hand'); el.innerHTML='';
+  state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ state.selected = state.selected.includes(c.id) ? state.selected.filter(id=>id!==c.id) : [...state.selected,c.id]; render(); }; d.innerHTML=`<div class="num">${c.n}</div><div class="suit">${c.color}</div>`; el.appendChild(d); });
+}
+function renderLog() { document.getElementById('log').innerHTML = state.log.join(''); }
+function render() {
+  document.getElementById('hp').textContent = `${state.hp}/${state.maxHp}`;
+  document.getElementById('encounter').textContent = state.gameOver ? 'Done' : `${state.defeated}/9`;
+  document.getElementById('deckCount').textContent = state.deck.length;
+  document.getElementById('discardCount').textContent = state.discard.length;
+  document.getElementById('relics').innerHTML = state.relics.length ? state.relics.map(r=>`<span class="relic">${r}</span>`).join('') : '<span class="relic">No relics yet</span>';
+  renderMonsters(); renderHand(); renderLog();
+  ['strikeBtn','sneakBtn','blastBtn','drawBtn'].forEach(id => document.getElementById(id).disabled = state.gameOver);
+}
+document.getElementById('strikeBtn').onclick=()=>attack('strike');
+document.getElementById('sneakBtn').onclick=()=>attack('sneak');
+document.getElementById('blastBtn').onclick=()=>attack('blast');
+document.getElementById('drawBtn').onclick=drawToHand;
+document.getElementById('restartBtn').onclick=start;
+start();
+</script>
+</body>
+</html>
