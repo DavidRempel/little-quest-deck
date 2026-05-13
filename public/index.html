@@ -40,7 +40,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .app { max-width: 1180px; margin: 0 auto; padding: 24px; }
 .header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
-.subtitle { color: var(--muted); max-width: 650px; line-height: 1.5; }
+.subtitle { color: var(--muted); max-width: 720px; line-height: 1.5; }
 .stats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; color: var(--muted); }
 .stat strong { color: var(--text); }
@@ -48,26 +48,32 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
 .panel h2 { margin: 0 0 12px; font-size: 1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.12em; }
 .monsters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.monster { background: var(--panel2); border: 2px solid var(--border); border-radius: 16px; padding: 14px; min-height: 190px; display: flex; flex-direction: column; gap: 8px; }
+.monster { background: var(--panel2); border: 2px solid var(--border); border-radius: 16px; padding: 14px; min-height: 210px; display: flex; flex-direction: column; gap: 8px; }
 .monster.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(226,180,92,0.18); }
 .monster .name { font-size: 1.15rem; font-weight: 800; }
 .monster .type { color: var(--muted); font-size: 0.85rem; }
+.tier { display: inline-flex; align-items: center; gap: 4px; width: fit-content; border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; color: var(--gold); font-size: 0.78rem; background: rgba(0,0,0,0.16); }
 .target-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
 .target { background: rgba(0,0,0,0.18); border-radius: 10px; padding: 7px; text-align: center; font-size: 0.78rem; color: var(--muted); }
 .target strong { display: block; color: var(--text); font-size: 1.1rem; }
 .hand { display: flex; flex-wrap: wrap; gap: 10px; min-height: 150px; }
-.card { width: 88px; height: 124px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; }
+.card { width: 88px; height: 132px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; position: relative; overflow: hidden; }
 .card.selected { outline: 4px solid var(--gold); transform: translateY(-5px); }
 .card .num { font-size: 2rem; font-weight: 900; }
 .card .suit { font-weight: 900; text-transform: uppercase; font-size: 0.8rem; }
+.card .ability { font-size: 0.64rem; font-weight: 800; line-height: 1.1; background: rgba(255,255,255,0.42); border-radius: 7px; padding: 4px; }
 .card.red { background: linear-gradient(160deg, #ffe3dd, #d9877a); }
 .card.green { background: linear-gradient(160deg, #e8f4d4, #9ec177); }
 .card.blue { background: linear-gradient(160deg, #e0eef9, #81afd3); }
 .card.purple { background: linear-gradient(160deg, #eee0f9, #b891d7); }
+.card.gold { background: linear-gradient(160deg, #fff3c4, #e2b45c); }
+.score-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.45; }
+.score-preview strong { color: var(--text); }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .relics { display: flex; flex-wrap: wrap; gap: 8px; }
 .relic { border: 1px solid var(--border); background: #1f1b18; border-radius: 999px; padding: 8px 10px; font-size: 0.85rem; color: var(--muted); }
+.rules { color: var(--muted); line-height: 1.45; margin: 0 0 12px; padding-left: 18px; }
 .log { height: 260px; overflow: auto; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 12px; color: var(--muted); line-height: 1.45; font-size: 0.92rem; }
 .log p { margin: 0 0 8px; }
 .upgrades { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 18px; z-index: 10; }
@@ -86,11 +92,11 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A tiny Dragonwood-ish roguelite prototype. Pick a monster, choose cards, then Strike, Sneak, or Blast. Beat 8 encounters and survive the boss.</div>
+      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a combo, then Strike, Sneak, or Blast. Used cards discard and immediately refill. Beat 8 encounters and survive the boss.</div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
-      <div class="stat">Encounter <strong id="encounter"></strong></div>
+      <div class="stat">Progress <strong id="encounter"></strong></div>
       <div class="stat">Deck <strong id="deckCount"></strong></div>
       <div class="stat">Discards <strong id="discardCount"></strong></div>
     </div>
@@ -102,18 +108,26 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <div class="monsters" id="monsters"></div>
       <h2 style="margin-top:18px;">Adventurer Hand</h2>
       <div class="hand" id="hand"></div>
+      <div class="score-preview" id="scorePreview"></div>
       <div class="actions">
-        <button class="action-btn" id="strikeBtn">Strike <small>sum selected cards + sword</small></button>
-        <button class="action-btn" id="sneakBtn">Sneak <small>longest run × 3 + cloak</small></button>
-        <button class="action-btn" id="blastBtn">Blast <small>same color × 4 + wand</small></button>
+        <button class="action-btn" id="strikeBtn">Strike <small>pairs / triples / quads</small></button>
+        <button class="action-btn" id="sneakBtn">Sneak <small>number sequences</small></button>
+        <button class="action-btn" id="blastBtn">Blast <small>same-color groups</small></button>
       </div>
       <div class="footer-actions">
-        <button id="drawBtn">Draw to 5</button>
+        <button id="drawBtn">Refill Hand</button>
         <button id="restartBtn">Restart Run</button>
       </div>
     </main>
 
     <aside class="panel">
+      <h2>Rules</h2>
+      <ul class="rules">
+        <li><strong>Strike:</strong> sum + same-number bonus.</li>
+        <li><strong>Sneak:</strong> sum + run bonus. Same-color runs hit harder.</li>
+        <li><strong>Blast:</strong> sum + same-color bonus.</li>
+        <li>Harder monsters have higher targets but better reward drafts.</li>
+      </ul>
       <h2>Relics</h2>
       <div class="relics" id="relics"></div>
       <h2 style="margin-top:18px;">Run Log</h2>
@@ -125,7 +139,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 <div class="upgrades" id="upgradeModal">
   <div class="upgrade-box">
     <h2>Choose a reward</h2>
-    <div class="subtitle">Defeated monsters leave something useful behind.</div>
+    <div class="subtitle" id="rewardSubtitle">Defeated monsters leave something useful behind.</div>
     <div class="upgrade-cards" id="upgradeCards"></div>
   </div>
 </div>
@@ -133,81 +147,251 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 <script>
 const colors = ['red', 'green', 'blue', 'purple'];
 const monsterNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
+const eliteNames = ['Ironroot Troll', 'Mirror Wyrm', 'Blackglass Ogre', 'Thorn Knight'];
 const bosses = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
-const rewards = [
-  { name: 'Rusty Sword', text: '+2 Strike.', apply: s => s.mods.strike += 2 },
-  { name: 'Shadow Cloak', text: '+2 Sneak.', apply: s => s.mods.sneak += 2 },
-  { name: 'Apprentice Wand', text: '+2 Blast.', apply: s => s.mods.blast += 2 },
-  { name: 'Campfire Soup', text: 'Heal 3 HP now.', apply: s => s.hp = Math.min(s.maxHp, s.hp + 3) },
-  { name: 'Bigger Satchel', text: 'Max hand size +1.', apply: s => s.handSize += 1 },
-  { name: 'Lucky Pebble', text: '+1 to all approaches.', apply: s => { s.mods.strike++; s.mods.sneak++; s.mods.blast++; } },
-  { name: 'Soft Boots', text: 'Max HP +2 and heal 2.', apply: s => { s.maxHp += 2; s.hp += 2; } },
-  { name: 'Monster Manual', text: 'Future monsters are slightly easier.', apply: s => s.ease += 1 }
-];
+const tierNames = { common: 'Common', tough: 'Tough', elite: 'Elite', boss: 'Boss' };
+const tierStars = { common: '⭐', tough: '⭐⭐', elite: '⭐⭐⭐', boss: '👑' };
+
 let state;
+function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push({n, color:c, id: crypto.randomUUID()})); return shuffle(deck); }
+function sample(a) { return a[Math.floor(Math.random()*a.length)]; }
+function makeCard(n, color, ability=null) { return { n, color, ability, id: uid() }; }
+function cardLabel(card) { return `${card.color} ${card.n}${card.ability ? ` (${abilityText(card.ability)})` : ''}`; }
+function abilityText(a) {
+  return {
+    wildColor: 'wild color', wildNumber: 'wild number', runPlus: '+3 in run', colorPlus: '+3 in color set',
+    strikePlus: '+3 in match', drawOnPlay: 'draw 1', shieldOnFail: 'shield 1'
+  }[a] || a;
+}
+function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push(makeCard(n, c))); return shuffle(deck); }
 function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
+
+function monsterTier(level) {
+  if (level >= 8) return 'elite';
+  const roll = Math.random();
+  if (level <= 2) return roll < 0.85 ? 'common' : 'tough';
+  if (level <= 5) return roll < 0.58 ? 'common' : roll < 0.9 ? 'tough' : 'elite';
+  return roll < 0.3 ? 'common' : roll < 0.75 ? 'tough' : 'elite';
+}
+function targetProfile(base, weakness, strength) {
+  const spread = () => Math.floor(Math.random() * 5) - 2;
+  const t = { strike: base + spread(), sneak: base + spread(), blast: base + spread() };
+  t[weakness] -= 4;
+  t[strength] += 4;
+  Object.keys(t).forEach(k => t[k] = Math.max(8, t[k] - state.ease));
+  return t;
+}
 function newMonster(level, boss=false) {
-  const base = boss ? 21 : 9 + level * 2;
-  const variance = () => Math.max(5, base + Math.floor(Math.random()*5) - 2 - state.ease);
-  return { id: crypto.randomUUID(), name: boss ? bosses[Math.floor(Math.random()*bosses.length)] : monsterNames[Math.floor(Math.random()*monsterNames.length)], boss, strike: variance(), sneak: variance(), blast: variance(), damage: boss ? 5 : Math.ceil(level/2)+1 };
+  const tier = boss ? 'boss' : monsterTier(level);
+  const baseByTier = { common: 12 + level, tough: 16 + level * 1.4, elite: 21 + level * 1.7, boss: 36 + state.ease };
+  const damageByTier = { common: 1 + Math.floor(level / 4), tough: 2 + Math.floor(level / 4), elite: 3 + Math.floor(level / 5), boss: 6 };
+  const modes = ['strike', 'sneak', 'blast'];
+  const weakness = sample(modes);
+  const strength = sample(modes.filter(m => m !== weakness));
+  const profile = targetProfile(Math.round(baseByTier[tier]), weakness, strength);
+  return {
+    id: uid(),
+    name: boss ? sample(bosses) : (tier === 'elite' ? sample(eliteNames) : sample(monsterNames)),
+    boss,
+    tier,
+    weakness,
+    strike: profile.strike,
+    sneak: profile.sneak,
+    blast: profile.blast,
+    damage: damageByTier[tier]
+  };
 }
 function start() {
-  state = { hp: 14, maxHp: 14, encounter: 1, defeated: 0, deck: makeDeck(), discard: [], hand: [], selected: [], monsters: [], mods: {strike:0,sneak:0,blast:0}, relics: [], log: [], handSize: 5, ease: 0, gameOver: false };
+  state = {
+    hp: 16, maxHp: 16, encounter: 1, defeated: 0, deck: makeDeck(), discard: [], hand: [], selected: [], monsters: [],
+    mods: {strike:0,sneak:0,blast:0}, relics: [], log: [], handSize: 5, ease: 0, gameOver: false,
+    lastRewardTier: 'common', block: 0
+  };
   fillMonsters(); drawToHand(); log('You step onto the forest path.'); render();
 }
-function fillMonsters() { while (state.monsters.length < 3 && state.defeated < 8) state.monsters.push(newMonster(state.encounter)); if (state.defeated >= 8 && state.monsters.length === 0) state.monsters.push(newMonster(9, true)); }
-function drawOne() { if (!state.deck.length) { state.deck = shuffle(state.discard); state.discard = []; log('The discard pile is shuffled back into the deck.'); } if (state.deck.length) state.hand.push(state.deck.pop()); }
+function fillMonsters() {
+  while (state.monsters.length < 3 && state.defeated < 8) state.monsters.push(newMonster(state.encounter));
+  if (state.defeated >= 8 && state.monsters.length === 0) state.monsters.push(newMonster(9, true));
+}
+function drawOne() {
+  if (!state.deck.length) {
+    state.deck = shuffle(state.discard);
+    state.discard = [];
+    if (state.deck.length) log('The discard pile is shuffled back into the deck.');
+  }
+  if (state.deck.length) state.hand.push(state.deck.pop());
+}
 function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
-function score(mode) {
-  const cards = selectedCards(); if (!cards.length) return 0;
-  if (mode === 'strike') return cards.reduce((a,c)=>a+c.n,0) + state.mods.strike;
+function sumCards(cards) { return cards.reduce((a,c)=>a+c.n,0); }
+function countsBy(cards, key) { return cards.reduce((acc,c)=>{ const v=c[key]; acc[v]=(acc[v]||0)+1; return acc; },{}); }
+function bestRun(cards) {
+  const nums = [...new Set(cards.map(c=>c.n))].sort((a,b)=>a-b);
+  let best=nums.length ? 1 : 0, cur=best;
+  for (let i=1;i<nums.length;i++) { if (nums[i] === nums[i-1]+1) cur++; else cur=1; best=Math.max(best,cur); }
+  return best;
+}
+function longestSameColorRun(cards) {
+  let best = 0;
+  colors.forEach(color => {
+    const same = cards.filter(c => c.color === color || c.ability === 'wildColor');
+    best = Math.max(best, bestRun(same));
+  });
+  return best;
+}
+function patternScore(mode, cards) {
+  const base = sumCards(cards);
+  let bonus = 0;
+  let detail = '';
+  if (mode === 'strike') {
+    const counts = countsBy(cards, 'n');
+    const best = Math.max(...Object.values(counts), 1);
+    bonus = ({1:0,2:4,3:10,4:18,5:30})[Math.min(best,5)] || 0;
+    detail = best >= 2 ? `${best} of a kind +${bonus}` : 'no match bonus';
+  }
   if (mode === 'sneak') {
-    const nums = [...new Set(cards.map(c=>c.n))].sort((a,b)=>a-b); let best=1, cur=1;
-    for (let i=1;i<nums.length;i++) { if (nums[i] === nums[i-1]+1) cur++; else cur=1; best=Math.max(best,cur); }
-    return best * 3 + cards.length + state.mods.sneak;
+    const run = bestRun(cards);
+    const sameColorRun = longestSameColorRun(cards);
+    bonus = ({1:0,2:2,3:6,4:12,5:20,6:30})[Math.min(run,6)] || 0;
+    if (sameColorRun >= 3) bonus += 6;
+    detail = `${run}-card run +${({1:0,2:2,3:6,4:12,5:20,6:30})[Math.min(run,6)] || 0}${sameColorRun >= 3 ? ', same-color run +6' : ''}`;
   }
   if (mode === 'blast') {
-    const counts = {}; cards.forEach(c => counts[c.color]=(counts[c.color]||0)+1);
-    return Math.max(...Object.values(counts)) * 4 + state.mods.blast;
+    const counts = countsBy(cards, 'color');
+    const wilds = cards.filter(c => c.ability === 'wildColor').length;
+    const best = Math.max(...Object.values(counts).map(v => v + wilds), 1);
+    bonus = ({1:0,2:3,3:8,4:15,5:24,6:34})[Math.min(best,6)] || 0;
+    detail = best >= 2 ? `${best} same color +${bonus}` : 'no color bonus';
   }
+  const cardBonus = cards.reduce((acc,c) => {
+    if (c.ability === 'runPlus' && mode === 'sneak' && bestRun(cards) >= 3) return acc + 3;
+    if (c.ability === 'colorPlus' && mode === 'blast') return acc + 3;
+    if (c.ability === 'strikePlus' && mode === 'strike') return acc + 3;
+    return acc;
+  }, 0);
+  return { total: base + bonus + cardBonus + state.mods[mode], base, bonus, cardBonus, mod: state.mods[mode], detail };
 }
+function score(mode) { return patternScore(mode, selectedCards()).total; }
 function attack(mode) {
   if (state.gameOver) return;
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0];
   state.targetId = monster.id;
-  const cards = selectedCards(); if (!cards.length) { log('Choose at least one card first.'); return; }
-  const total = score(mode); const target = monster[mode];
+  const cards = selectedCards();
+  if (!cards.length) { log('Choose at least one card first.'); return; }
+  const scored = patternScore(mode, cards);
+  const total = scored.total; const target = monster[mode];
+  const shield = cards.some(c => c.ability === 'shieldOnFail') ? 1 : 0;
+  const extraDraw = cards.filter(c => c.ability === 'drawOnPlay').length;
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id)); state.selected = [];
   if (total >= target) {
-    log(`Success! ${modeName(mode)} ${total} beats ${monster.name}'s ${target}.`);
+    log(`Success! ${modeName(mode)} ${total} beats ${monster.name}'s ${target} (${scored.detail}).`);
+    state.lastRewardTier = monster.tier;
     state.monsters = state.monsters.filter(m => m.id !== monster.id); state.defeated++; state.encounter++;
     if (monster.boss) { state.gameOver = true; log('<span class="game-over">You beat the boss. Tiny victory parade.</span>'); render(); return; }
-    openRewards();
+    openRewards(monster.tier);
   } else {
-    state.hp -= monster.damage;
-    log(`Oof. ${modeName(mode)} ${total} misses ${monster.name}'s ${target}. Take ${monster.damage} damage.`);
+    const damage = Math.max(0, monster.damage - shield);
+    state.hp -= damage;
+    log(`Oof. ${modeName(mode)} ${total} misses ${monster.name}'s ${target} (${scored.detail}). Take ${damage} damage${shield ? ' after shield' : ''}.`);
     if (state.hp <= 0) { state.hp = 0; state.gameOver = true; log('<span class="game-over">Run over. The forest keeps your lunch money.</span>'); }
   }
+  for (let i=0; i<extraDraw; i++) drawOne();
   fillMonsters(); drawToHand(); render();
 }
 function modeName(m) { return m[0].toUpperCase()+m.slice(1); }
-function openRewards() {
-  const picks = shuffle([...rewards]).slice(0,3);
+
+function basicCardReward() {
+  const card = makeCard(2 + Math.floor(Math.random()*6), sample(colors));
+  return { name: `Add ${card.color} ${card.n}`, text: 'Add a basic card to your deck.', apply: s => s.discard.push(card) };
+}
+function targetedCardReward() {
+  const card = makeCard(3 + Math.floor(Math.random()*6), sample(colors), sample([null, 'runPlus', 'colorPlus', 'strikePlus']));
+  return { name: `Add ${card.color} ${card.n}`, text: `Add to deck${card.ability ? `: ${abilityText(card.ability)}.` : '.'}`, apply: s => s.discard.push(card) };
+}
+function rareCardReward() {
+  const card = makeCard(4 + Math.floor(Math.random()*5), sample([...colors, 'gold']), sample(['wildColor', 'runPlus', 'colorPlus', 'strikePlus', 'drawOnPlay', 'shieldOnFail']));
+  return { name: `Add rare ${card.color} ${card.n}`, text: `Add to deck: ${abilityText(card.ability)}.`, apply: s => s.discard.push(card) };
+}
+function removeLowestCard(s) {
+  const all = [...s.hand, ...s.deck, ...s.discard];
+  const removable = all.filter(c => !c.ability).sort((a,b)=>a.n-b.n)[0] || all.sort((a,b)=>a.n-b.n)[0];
+  if (!removable) return;
+  s.hand = s.hand.filter(c => c.id !== removable.id);
+  s.deck = s.deck.filter(c => c.id !== removable.id);
+  s.discard = s.discard.filter(c => c.id !== removable.id);
+}
+const commonRewards = [
+  basicCardReward,
+  basicCardReward,
+  () => ({ name: 'Campfire Soup', text: 'Heal 3 HP now.', apply: s => s.hp = Math.min(s.maxHp, s.hp + 3) }),
+  () => ({ name: 'Sharpened Stick', text: '+1 Strike.', apply: s => s.mods.strike += 1 }),
+  () => ({ name: 'Quiet Boots', text: '+1 Sneak.', apply: s => s.mods.sneak += 1 }),
+  () => ({ name: 'Spark Charm', text: '+1 Blast.', apply: s => s.mods.blast += 1 })
+];
+const toughRewards = [
+  targetedCardReward,
+  targetedCardReward,
+  basicCardReward,
+  () => ({ name: 'Bigger Satchel', text: 'Max hand size +1.', apply: s => s.handSize += 1 }),
+  () => ({ name: 'Soft Boots', text: 'Max HP +2 and heal 2.', apply: s => { s.maxHp += 2; s.hp = Math.min(s.maxHp, s.hp + 2); } }),
+  () => ({ name: 'Lucky Pebble', text: '+1 to all approaches.', apply: s => { s.mods.strike++; s.mods.sneak++; s.mods.blast++; } })
+];
+const eliteRewards = [
+  rareCardReward,
+  rareCardReward,
+  targetedCardReward,
+  () => ({ name: 'Prune the Deck', text: 'Remove your lowest plain card.', apply: removeLowestCard }),
+  () => ({ name: 'Monster Manual', text: 'Future monster targets -1.', apply: s => s.ease += 1 }),
+  () => ({ name: 'Deep Pockets', text: 'Max hand size +1 and heal 2.', apply: s => { s.handSize += 1; s.hp = Math.min(s.maxHp, s.hp + 2); } })
+];
+function rewardPoolFor(tier) {
+  if (tier === 'elite') return [...eliteRewards, ...toughRewards];
+  if (tier === 'tough') return [...toughRewards, ...commonRewards];
+  return commonRewards;
+}
+function openRewards(tier='common') {
+  const pool = rewardPoolFor(tier);
+  const picks = shuffle(pool.map(factory => factory())).slice(0,3);
+  document.getElementById('rewardSubtitle').textContent = `${tierNames[tier]} reward draft: harder enemies offer better odds of rare cards and stronger upgrades.`;
   const wrap = document.getElementById('upgradeCards'); wrap.innerHTML = '';
-  picks.forEach(r => { const b=document.createElement('button'); b.className='upgrade'; b.innerHTML=`<strong>${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.name); document.getElementById('upgradeModal').classList.remove('open'); log(`Reward chosen: ${r.name}.`); fillMonsters(); drawToHand(); render(); }; wrap.appendChild(b); });
+  picks.forEach(r => {
+    const b=document.createElement('button'); b.className='upgrade';
+    b.innerHTML=`<strong>${r.name}</strong>${r.text}`;
+    b.onclick=()=>{ r.apply(state); state.relics.push(r.name); document.getElementById('upgradeModal').classList.remove('open'); log(`Reward chosen: ${r.name}.`); fillMonsters(); drawToHand(); render(); };
+    wrap.appendChild(b);
+  });
   document.getElementById('upgradeModal').classList.add('open');
 }
 function renderMonsters() {
   const el=document.getElementById('monsters'); el.innerHTML='';
-  state.monsters.forEach((m,i)=>{ if (!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':''); d.onclick=()=>{state.targetId=m.id; render();}; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="type">Damage ${m.damage}${m.boss?' · Final boss':''}</div><div class="target-row"><div class="target">Strike<strong>${m.strike}</strong></div><div class="target">Sneak<strong>${m.sneak}</strong></div><div class="target">Blast<strong>${m.blast}</strong></div></div>`; el.appendChild(d); });
+  state.monsters.forEach(m=>{
+    if (!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id;
+    const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':'');
+    d.onclick=()=>{state.targetId=m.id; render();};
+    d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} reward</div><div class="type">Damage ${m.damage} · weak to ${modeName(m.weakness)}${m.boss?' · Final boss':''}</div><div class="target-row"><div class="target">Strike<strong>${m.strike}</strong></div><div class="target">Sneak<strong>${m.sneak}</strong></div><div class="target">Blast<strong>${m.blast}</strong></div></div>`;
+    el.appendChild(d);
+  });
 }
 function renderHand() {
   const el=document.getElementById('hand'); el.innerHTML='';
-  state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ state.selected = state.selected.includes(c.id) ? state.selected.filter(id=>id!==c.id) : [...state.selected,c.id]; render(); }; d.innerHTML=`<div class="num">${c.n}</div><div class="suit">${c.color}</div>`; el.appendChild(d); });
+  state.hand.forEach(c=>{
+    const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`;
+    d.onclick=()=>{ state.selected = state.selected.includes(c.id) ? state.selected.filter(id=>id!==c.id) : [...state.selected,c.id]; render(); };
+    d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability ? `<div class="ability">${abilityText(c.ability)}</div>` : '<div></div>'}`;
+    el.appendChild(d);
+  });
+}
+function renderPreview() {
+  const cards = selectedCards();
+  const el = document.getElementById('scorePreview');
+  if (!cards.length) { el.innerHTML = 'Select cards to preview combo scores.'; return; }
+  const bits = ['strike','sneak','blast'].map(mode => {
+    const s = patternScore(mode, cards);
+    return `<strong>${modeName(mode)} ${s.total}</strong> <span>(${s.base} sum + ${s.bonus} pattern + ${s.cardBonus} card + ${s.mod} relic)</span>`;
+  });
+  el.innerHTML = bits.join('<br>');
 }
 function renderLog() { document.getElementById('log').innerHTML = state.log.join(''); }
 function render() {
@@ -216,7 +400,7 @@ function render() {
   document.getElementById('deckCount').textContent = state.deck.length;
   document.getElementById('discardCount').textContent = state.discard.length;
   document.getElementById('relics').innerHTML = state.relics.length ? state.relics.map(r=>`<span class="relic">${r}</span>`).join('') : '<span class="relic">No relics yet</span>';
-  renderMonsters(); renderHand(); renderLog();
+  renderMonsters(); renderHand(); renderPreview(); renderLog();
   ['strikeBtn','sneakBtn','blastBtn','drawBtn'].forEach(id => document.getElementById(id).disabled = state.gameOver);
 }
 document.getElementById('strikeBtn').onclick=()=>attack('strike');
