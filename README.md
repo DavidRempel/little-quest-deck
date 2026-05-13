@@ -2,4 +2,13 @@
 
 Tiny browser card-battler prototype for quick playtesting.
 
-Open `index.html` directly or serve the folder as a static site.
+Hosted via Cloudflare Workers static assets.
+
+Local preview:
+
+```bash
+cd public
+python3 -m http.server 8765
+```
+
+Then open <http://localhost:8765>.
