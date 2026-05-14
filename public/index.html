@@ -48,8 +48,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
 .panel h2 { margin: 0 0 12px; font-size: 1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.12em; }
 .monsters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.monster { background: var(--panel2); border: 2px solid var(--border); border-radius: 16px; padding: 14px; min-height: 210px; display: flex; flex-direction: column; gap: 8px; }
-.monster.defeated { opacity: 0.55; }
+.monster { background: var(--panel2); border: 2px solid var(--border); border-radius: 16px; padding: 14px; min-height: 210px; display: flex; flex-direction: column; gap: 8px; transition: opacity 520ms ease, transform 520ms ease, filter 520ms ease; }
+.monster.defeated { opacity: 0; transform: scale(0.72) rotate(-7deg); filter: grayscale(1); }
+.monster.entering { animation: tileIn 620ms ease-out both; }
+@keyframes tileIn { from { opacity: 0; transform: translateY(16px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .monster.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(226,180,92,0.18); }
 .monster .name { font-size: 1.15rem; font-weight: 800; }
 .monster .type { color: var(--muted); font-size: 0.85rem; }
@@ -94,10 +96,11 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .log p { margin: 0 0 8px; }
 .upgrades { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 18px; z-index: 10; }
 .upgrades.open { display: flex; }
-.upgrade-box { max-width: 850px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 22px; padding: 20px; }
+.upgrade-box { max-width: 850px; width: 100%; max-height: 92vh; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 22px; padding: 20px; }
 .upgrade-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
 .upgrade { text-align: left; min-height: 150px; background: var(--panel2); }
 .upgrade strong { display: block; color: var(--gold); margin-bottom: 8px; font-size: 1.05rem; }
+.skip-reward { border-color: var(--gold); }
 .footer-actions { display: flex; gap: 10px; margin-top: 12px; }
 .game-over { font-size: 1.2rem; color: var(--gold); font-weight: 800; }
 @media (max-width: 900px) { .grid, .monsters, .upgrade-cards { grid-template-columns: 1fr; } .stats { justify-content: flex-start; } .actions { grid-template-columns: 1fr; } }
@@ -108,13 +111,14 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Random cards are weak. The whole selected set must match a pattern: all same number, all in sequence, or all same colour.</div>
+      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Random cards are weak. The whole selected set must match a pattern: all same number, all in sequence, or all same colour. <strong id="buildLabel"></strong></div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
       <div class="stat">Progress <strong id="encounter"></strong></div>
       <div class="stat">Deck <strong id="deckCount"></strong></div>
       <div class="stat">Discards <strong id="discardCount"></strong></div>
+      <div class="stat">Build <strong id="buildStat"></strong></div>
     </div>
   </div>
 
@@ -161,6 +165,8 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 </div>
 
 <script>
+const buildVersion = 'v2.2-actual-cloudflare-repo';
+const rewardChance = { common: 0.45, tough: 0.75, elite: 1, boss: 1 };
 const colors = ['red', 'green', 'blue', 'purple'];
 const monsterNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const eliteNames = ['Ironroot Troll', 'Mirror Wyrm', 'Blackglass Ogre', 'Thorn Knight'];
@@ -200,10 +206,14 @@ function newMonster(level) {
   return { id: uid(), name: boss ? sample(bosses) : (tier === 'elite' ? sample(eliteNames) : sample(monsterNames)), boss, tier, target: Math.max(5, Math.round(baseByTier[tier] + spread - state.ease)), damage: damageByTier[tier], discardUsed:false };
 }
 function start() {
-  state = { hp:16, maxHp:16, act:1, encounter:1, defeated:0, deck:makeDeck(), discard:[], hand:[], selected:[], monsters:[], relics:[], log:[], handSize:5, ease:0, gameOver:false };
+  document.title = `Little Quest Deck ${buildVersion}`;
+  document.getElementById('buildLabel').textContent = `${buildVersion}: animated defeat, skippable rewards, power potion.`;
+  document.getElementById('buildStat').textContent = buildVersion;
+  console.info(`Little Quest Deck build ${buildVersion}`);
+  state = { hp:16, maxHp:16, act:1, encounter:1, defeated:0, deck:makeDeck(), discard:[], hand:[], selected:[], monsters:[], relics:[], log:[], handSize:5, ease:0, nextAttackBonus:0, gameOver:false, animating:false };
   fillMonsters(); drawToHand(); log('You step onto the forest path.'); render();
 }
-function fillMonsters() { while (state.monsters.length < 3 && state.defeated < 5) state.monsters.push(newMonster(state.encounter)); if (state.defeated >= 5 && state.monsters.length === 0) state.monsters.push(newMonster(5)); }
+function fillMonsters(animate=false) { while (state.monsters.length < 3 && state.defeated < 5) state.monsters.push({...newMonster(state.encounter), entering: animate}); if (state.defeated >= 5 && state.monsters.length === 0) state.monsters.push({...newMonster(5), entering: animate}); if (animate) setTimeout(()=>{ state.monsters.forEach(m=>delete m.entering); render(); }, 700); }
 function drawOne() { if (!state.deck.length) { state.deck = shuffle(state.discard); state.discard = []; if (state.deck.length) log('The discard pile is shuffled back into the deck.'); } if (state.deck.length) state.hand.push(state.deck.pop()); }
 function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
@@ -239,7 +249,7 @@ function attackScore(cards) {
     if(c.ability==='colorPlus' && colourOK) return acc+3;
     return acc;
   },0);
-  const total = Math.floor(base * comboMult + ability);
+  const total = Math.floor(base * comboMult + ability) + state.nextAttackBonus;
   const active = [];
   if (matchOK) active.push(`${cards.length} same number`);
   if (runOK) active.push(`${cards.length}-card sequence`);
@@ -248,22 +258,37 @@ function attackScore(cards) {
   return { total, base, mMult, rMult, cMult, comboMult, ability, matchOK, runOK, colourOK, bestCombo };
 }
 function attack() {
-  if (state.gameOver) return;
+  if (state.gameOver || state.animating) return;
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0]; state.targetId = monster.id;
   const cards = selectedCards(); if (!cards.length) { log('Choose at least one card first.'); return; }
-  const scored = attackScore(cards); const shield = cards.some(c=>c.ability==='shieldOnFail') ? 1 : 0; const extraDraw = cards.filter(c=>c.ability==='drawOnPlay').length;
+  const scored = attackScore(cards); const shield = cards.some(c=>c.ability==='shieldOnFail') ? 1 : 0; const extraDraw = cards.filter(c=>c.ability==='drawOnPlay').length; const potion = state.nextAttackBonus; state.nextAttackBonus = 0;
   cards.forEach(c=>state.discard.push(c)); state.hand = state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[];
   if (scored.total >= monster.target) {
-    log(`Success! Attack ${scored.total} beats ${monster.name}'s ${monster.target} (${scored.bestCombo}, ${scored.cMult}x colour).`);
-    const tier=monster.tier; state.monsters = state.monsters.filter(m=>m.id!==monster.id); state.defeated++; state.encounter++;
-    if (monster.boss) { openRewards('boss'); startNextAct(); return; }
-    openRewards(tier);
+    log(`Success! Attack ${scored.total} beats ${monster.name}'s ${monster.target} (${scored.bestCombo}, ${scored.cMult}x colour)${potion?' — power potion spent':''}.`);
+    monster.defeated = true;
+    state.animating = true;
+    render();
+    setTimeout(()=>finishDefeat(monster, extraDraw), 620);
+    return;
   } else {
     const damage=Math.max(0, monster.damage-shield); state.hp-=damage;
-    log(`Oof. Attack ${scored.total} misses ${monster.name}'s ${monster.target}. Take ${damage} damage${shield?' after shield':''}.`);
+    log(`Oof. Attack ${scored.total} misses ${monster.name}'s ${monster.target}${potion?' — power potion spent':''}. Take ${damage} damage${shield?' after shield':''}.`);
     if (state.hp<=0) { state.hp=0; state.gameOver=true; log('<span class="game-over">Run over. The forest keeps your lunch money.</span>'); }
   }
   for(let i=0;i<extraDraw;i++) drawOne(); fillMonsters(); drawToHand(); render();
+}
+function finishDefeat(monster, extraDraw=0) {
+  const tier = monster.tier;
+  state.monsters = state.monsters.filter(m=>m.id!==monster.id);
+  state.defeated++;
+  state.encounter++;
+  state.animating = false;
+  for(let i=0;i<extraDraw;i++) drawOne();
+  drawToHand();
+  render();
+  if (monster.boss) { openRewards('boss', startNextAct); return; }
+  if (Math.random() < (rewardChance[tier] ?? 1)) openRewards(tier, () => { fillMonsters(true); drawToHand(); render(); });
+  else { log('No treasure this time. The path shifts and another monster steps in.'); fillMonsters(true); render(); }
 }
 function discardSelected() {
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0]; if (!monster) return;
@@ -271,17 +296,18 @@ function discardSelected() {
   if(monster.discardUsed){ log('You already discarded while facing this monster.'); return; }
   monster.discardUsed=true; cards.forEach(c=>state.discard.push(c)); state.hand=state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[]; drawToHand(); log(`Discarded ${cards.length} card${cards.length>1?'s':''} to dig for a better combo.`); render();
 }
-function startNextAct() { state.act++; state.defeated=0; state.encounter=1; state.monsters=[]; state.hp=Math.min(state.maxHp,state.hp+3); log(`<span class="game-over">Boss down. Act ${state.act} begins after a short rest.</span>`); fillMonsters(); drawToHand(); render(); }
+function startNextAct() { state.act++; state.defeated=0; state.encounter=1; state.monsters=[]; state.hp=Math.min(state.maxHp,state.hp+3); log(`<span class="game-over">Boss down. Act ${state.act} begins after a short rest.</span>`); fillMonsters(true); drawToHand(); render(); }
 function cardReward(quality='basic') { const abilityPool = quality==='rare' ? ['wildColor','runPlus','colorPlus','matchPlus','drawOnPlay','shieldOnFail','highValue','doubleCard'] : quality==='targeted' ? ['runPlus','colorPlus','matchPlus',null] : [null,null,'highValue']; const card=makeCard(quality==='basic'?2+Math.floor(Math.random()*6):3+Math.floor(Math.random()*6), sample(quality==='rare'?[...colors,'gold']:colors), sample(abilityPool)); return { kind:'card', card, name:`Add ${card.color} ${card.n}`, text: card.ability?abilityLongText(card.ability):'Basic combo card.', apply:s=>s.discard.push(card) }; }
-function relicReward() { return sample([ {kind:'relic', name:'Campfire Soup', text:'Heal 4 HP now.', apply:s=>s.hp=Math.min(s.maxHp,s.hp+4)}, {kind:'relic', name:'Bigger Satchel', text:'Hand size +1.', apply:s=>s.handSize+=1}, {kind:'relic', name:'Monster Manual', text:'Future targets -1.', apply:s=>s.ease+=1}, {kind:'relic', name:'Soft Boots', text:'Max HP +2 and heal 2.', apply:s=>{s.maxHp+=2; s.hp=Math.min(s.maxHp,s.hp+2)}} ]); }
+function relicReward() { return sample([ {kind:'relic', name:'Campfire Soup', text:'Heal 4 HP now.', apply:s=>s.hp=Math.min(s.maxHp,s.hp+4)}, {kind:'relic', name:'Bigger Satchel', text:'Hand size +1.', apply:s=>s.handSize+=1}, {kind:'relic', name:'Monster Manual', text:'Future targets -1.', apply:s=>s.ease+=1}, {kind:'relic', name:'Soft Boots', text:'Max HP +2 and heal 2.', apply:s=>{s.maxHp+=2; s.hp=Math.min(s.maxHp,s.hp+2)}}, {kind:'relic', name:'Power Potion', text:'+6 to your next attack only.', apply:s=>s.nextAttackBonus+=6}, {kind:'relic', name:'Salvage Snack', text:'Discard 2 from deck, then heal 2 HP.', apply:s=>{ for(let i=0;i<2;i++) if(s.deck.length) s.discard.push(s.deck.pop()); s.hp=Math.min(s.maxHp,s.hp+2); }} ]); }
 function rewardPoolFor(tier) { if(tier==='boss') return [()=>relicReward(),()=>cardReward('rare'),()=>cardReward('rare')]; if(tier==='elite') return [()=>cardReward('rare'),()=>cardReward('rare'),()=>relicReward(),()=>cardReward('targeted')]; if(tier==='tough') return [()=>cardReward('targeted'),()=>cardReward('targeted'),()=>cardReward('rare'),()=>cardReward('basic')]; return [()=>cardReward('basic'),()=>cardReward('basic'),()=>cardReward('targeted')]; }
 function miniCard(card){ return `<div class="mini-card ${card.color}"><div><div class="mini-num">${card.n}</div><div class="mini-suit">${card.color}</div></div>${card.ability?`<div class="mini-suit">${abilityText(card.ability)}</div>`:''}</div>`; }
-function openRewards(tier='common') { const picks=shuffle(rewardPoolFor(tier).map(f=>f())).slice(0,3); document.getElementById('rewardSubtitle').textContent = `${tierNames[tier] || 'Boss'} reward draft: choose one. Tough fights can offer rare cards or relics.`; const wrap=document.getElementById('upgradeCards'); wrap.innerHTML=''; picks.forEach(r=>{ const b=document.createElement('button'); b.className='upgrade'; b.innerHTML = r.kind==='card' ? `<div class="reward-card">${miniCard(r.card)}<div><strong>${r.name}</strong>${r.text}</div></div>` : `<strong>Relic: ${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.kind==='card'?`${r.card.color} ${r.card.n}`:r.name); document.getElementById('upgradeModal').classList.remove('open'); log(`Reward chosen: ${r.name}.`); fillMonsters(); drawToHand(); render(); }; wrap.appendChild(b); }); document.getElementById('upgradeModal').classList.add('open'); }
-function renderMonsters(){ const el=document.getElementById('monsters'); el.innerHTML=''; state.monsters.forEach(m=>{ if(!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':''); d.onclick=()=>{state.targetId=m.id; render();}; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} reward</div><div class="type">Damage ${m.damage}${m.discardUsed?' · discard used':''}</div><div class="target-row"><div class="target">Target<strong>${m.target}</strong></div></div>`; el.appendChild(d); }); }
-function renderHand(){ const el=document.getElementById('hand'); el.innerHTML=''; state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ state.selected=state.selected.includes(c.id)?state.selected.filter(id=>id!==c.id):[...state.selected,c.id]; render(); }; d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability?`<div class="ability">${abilityText(c.ability)}</div>`:'<div></div>'}`; el.appendChild(d); }); }
-function renderPreview(){ const cards=selectedCards(), el=document.getElementById('scorePreview'); if(!cards.length){ el.innerHTML='Select cards to preview score. Random cards are weak; clean combos multiply.'; return; } const s=attackScore(cards); el.innerHTML=`<div class="score-big"><span class="score-number">${s.total}</span><strong>Attack score</strong></div><div class="score-formula"><div class="score-part"><b>${s.base}</b>base</div><div class="score-part"><b>${Math.max(s.mMult,s.rMult)}x</b>${s.matchOK?'same #':s.runOK?'sequence':'no set'}</div><div class="score-part"><b>${s.cMult}x</b>colour</div><div class="score-part"><b>+${s.ability}</b>cards</div></div><div style="margin-top:8px;">Combo: ${s.bestCombo}. Extra off-pattern cards break bonuses. Target selected monster: ${(state.monsters.find(m=>m.id===state.targetId)||state.monsters[0])?.target || '-'}</div>`; }
+function closeRewards(msg, afterClose=()=>{}) { document.getElementById('upgradeModal').classList.remove('open'); log(msg); afterClose(); }
+function openRewards(tier='common', afterClose=()=>{}) { const picks=shuffle(rewardPoolFor(tier).map(f=>f())).slice(0,3); document.getElementById('rewardSubtitle').textContent = `${tierNames[tier] || 'Boss'} reward draft: choose one, or skip to keep the deck lean.`; const wrap=document.getElementById('upgradeCards'); wrap.innerHTML=''; picks.forEach(r=>{ const b=document.createElement('button'); b.className='upgrade'; b.innerHTML = r.kind==='card' ? `<div class="reward-card">${miniCard(r.card)}<div><strong>${r.name}</strong>${r.text}</div></div>` : `<strong>Relic: ${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.kind==='card'?`${r.card.color} ${r.card.n}`:r.name); closeRewards(`Reward chosen: ${r.name}.`, afterClose); }; wrap.appendChild(b); }); const skip=document.createElement('button'); skip.className='upgrade skip-reward'; skip.innerHTML='<strong>Skip</strong>Take nothing and keep the deck lean.'; skip.onclick=()=>closeRewards('Reward skipped.', afterClose); wrap.appendChild(skip); document.getElementById('upgradeModal').classList.add('open'); }
+function renderMonsters(){ const el=document.getElementById('monsters'); el.innerHTML=''; state.monsters.forEach(m=>{ if(!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className=['monster', state.targetId===m.id?'selected':'', m.defeated?'defeated':'', m.entering?'entering':''].filter(Boolean).join(' '); d.onclick=()=>{ if(!state.animating){ state.targetId=m.id; render(); } }; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} reward</div><div class="type">Damage ${m.damage}${m.discardUsed?' · discard used':''}</div><div class="target-row"><div class="target">Target<strong>${m.target}</strong></div></div>`; el.appendChild(d); }); }
+function renderHand(){ const el=document.getElementById('hand'); el.innerHTML=''; state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ if(state.animating) return; state.selected=state.selected.includes(c.id)?state.selected.filter(id=>id!==c.id):[...state.selected,c.id]; render(); }; d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability?`<div class="ability">${abilityText(c.ability)}</div>`:'<div></div>'}`; el.appendChild(d); }); }
+function renderPreview(){ const cards=selectedCards(), el=document.getElementById('scorePreview'); if(!cards.length){ el.innerHTML=`Select cards to preview score. Random cards are weak; clean combos multiply.${state.nextAttackBonus?` Power Potion ready: +${state.nextAttackBonus} next attack.`:''}`; return; } const s=attackScore(cards); el.innerHTML=`<div class="score-big"><span class="score-number">${s.total}</span><strong>Attack score</strong></div><div class="score-formula"><div class="score-part"><b>${s.base}</b>base</div><div class="score-part"><b>${Math.max(s.mMult,s.rMult)}x</b>${s.matchOK?'same #':s.runOK?'sequence':'no set'}</div><div class="score-part"><b>${s.cMult}x</b>colour</div><div class="score-part"><b>+${s.ability + state.nextAttackBonus}</b>cards/potion</div></div><div style="margin-top:8px;">Combo: ${s.bestCombo}. Extra off-pattern cards break bonuses. Target selected monster: ${(state.monsters.find(m=>m.id===state.targetId)||state.monsters[0])?.target || '-'}</div>`; }
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
-function render(){ document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`; document.getElementById('encounter').textContent=state.gameOver?'Done':`Act ${state.act} · ${state.defeated}/5`; document.getElementById('deckCount').textContent=state.deck.length; document.getElementById('discardCount').textContent=state.discard.length; document.getElementById('relics').innerHTML=state.relics.length?state.relics.map(r=>`<span class="relic">${r}</span>`).join(''):'<span class="relic">No added cards/relics yet</span>'; renderMonsters(); renderHand(); renderPreview(); renderLog(); ['attackBtn','discardBtn'].forEach(id=>document.getElementById(id).disabled=state.gameOver); }
+function render(){ document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`; document.getElementById('encounter').textContent=state.gameOver?'Done':`Act ${state.act} · ${state.defeated}/5`; document.getElementById('deckCount').textContent=state.deck.length; document.getElementById('discardCount').textContent=state.discard.length; const relics=[...state.relics]; if(state.nextAttackBonus) relics.unshift(`Power Potion +${state.nextAttackBonus}`); document.getElementById('relics').innerHTML=relics.length?relics.map(r=>`<span class="relic">${r}</span>`).join(''):'<span class="relic">No added cards/relics yet</span>'; renderMonsters(); renderHand(); renderPreview(); renderLog(); ['attackBtn','discardBtn'].forEach(id=>document.getElementById(id).disabled=state.gameOver || state.animating); }
 document.getElementById('attackBtn').onclick=attack;
 document.getElementById('discardBtn').onclick=discardSelected;
 document.getElementById('restartBtn').onclick=start;
