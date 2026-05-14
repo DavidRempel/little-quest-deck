@@ -108,7 +108,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Random cards are weak; sets, runs, colours, and upgraded cards do the real work.</div>
+      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Random cards are weak. The whole selected set must match a pattern: all same number, all in sequence, or all same colour.</div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
@@ -138,9 +138,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <h2>Rules</h2>
       <ul class="rules">
         <li>Each selected card is only worth <strong>1 base point</strong>.</li>
-        <li><strong>Same number:</strong> pair/triple/quad gives a bigger multiplier.</li>
-        <li><strong>Sequence:</strong> 3+ card runs give strong multipliers.</li>
-        <li><strong>Same colour:</strong> colour groups add smaller multipliers.</li>
+        <li><strong>Same number:</strong> every selected card must have the same number.</li>
+        <li><strong>Sequence:</strong> every selected card must form one unbroken run.</li>
+        <li><strong>Same colour:</strong> every selected card must share a colour.</li>
+        <li>Extra off-pattern cards break the combo. Do not spam the whole hand.</li>
         <li><strong>Discard</strong> selected cards once per monster to dig for combos.</li>
       </ul>
       <h2>Relics</h2>
@@ -175,7 +176,10 @@ function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.r
 function sample(a) { return a[Math.floor(Math.random()*a.length)]; }
 function makeCard(n, color, ability=null) { return { n, color, ability, id: uid() }; }
 function abilityText(a) {
-  return { wildColor:'wild colour', runPlus:'+3 if in sequence', colorPlus:'+3 if in colour group', matchPlus:'+3 if in same-number set', drawOnPlay:'draw 1 after attack', shieldOnFail:'shield 1 on miss', highValue:'+2 points', doubleCard:'2x card base' }[a] || a;
+  return { wildColor:'wild colour', runPlus:'+3 sequence', colorPlus:'+3 colour', matchPlus:'+3 match', drawOnPlay:'draw 1', shieldOnFail:'shield 1', highValue:'+2', doubleCard:'2x base' }[a] || a;
+}
+function abilityLongText(a) {
+  return { wildColor:'Counts as any colour for all-same-colour sets.', runPlus:'+3 only if the whole selected set is a sequence.', colorPlus:'+3 only if the whole selected set is one colour.', matchPlus:'+3 only if the whole selected set has the same number.', drawOnPlay:'Draw 1 after attack.', shieldOnFail:'Shield 1 damage on a miss.', highValue:'+2 base points.', doubleCard:'This card contributes 2 base points.' }[a] || a;
 }
 function cardBase(card) { return card.ability === 'doubleCard' ? 2 : 1; }
 function cardPoints(card) { return cardBase(card) + (card.ability === 'highValue' ? 2 : 0); }
@@ -204,25 +208,44 @@ function drawOne() { if (!state.deck.length) { state.deck = shuffle(state.discar
 function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function countsBy(cards, key) { return cards.reduce((acc,c)=>{ const v=c[key]; acc[v]=(acc[v]||0)+1; return acc; },{}); }
-function bestRun(cards) { const nums=[...new Set(cards.map(c=>c.n))].sort((a,b)=>a-b); let best=nums.length?1:0, cur=best; for(let i=1;i<nums.length;i++){ if(nums[i]===nums[i-1]+1) cur++; else cur=1; best=Math.max(best,cur); } return best; }
-function bestColorCount(cards) { const counts=countsBy(cards,'color'); const wilds=cards.filter(c=>c.ability==='wildColor').length; return Math.max(...Object.values(counts).map(v=>v+wilds), wilds, 1); }
-function bestMatchCount(cards) { const counts=countsBy(cards,'n'); return Math.max(...Object.values(counts), 1); }
+function isWholeMatch(cards) {
+  return cards.length >= 2 && cards.every(c => c.n === cards[0].n);
+}
+function isWholeRun(cards) {
+  if (cards.length < 3) return false;
+  const nums = cards.map(c => c.n).sort((a,b)=>a-b);
+  if (new Set(nums).size !== nums.length) return false;
+  return nums.every((n,i) => i === 0 || n === nums[i-1] + 1);
+}
+function isWholeColour(cards) {
+  if (cards.length < 2) return false;
+  const nonWild = cards.filter(c => c.ability !== 'wildColor');
+  if (!nonWild.length) return true;
+  return nonWild.every(c => c.color === nonWild[0].color);
+}
 function attackScore(cards) {
   const base = cards.reduce((a,c)=>a+cardPoints(c),0);
-  const matchCount = bestMatchCount(cards), runCount = bestRun(cards), colourCount = bestColorCount(cards);
-  const mMult = matchMult[Math.min(matchCount,5)] || 1;
-  const rMult = runMult[Math.min(runCount,6)] || 1;
-  const cMult = colorMult[Math.min(colourCount,6)] || 1;
-  const comboMult = Math.max(mMult, rMult) * cMult;
+  const matchOK = isWholeMatch(cards);
+  const runOK = isWholeRun(cards);
+  const colourOK = isWholeColour(cards);
+  const mMult = matchOK ? (matchMult[Math.min(cards.length,5)] || 1) : 1;
+  const rMult = runOK ? (runMult[Math.min(cards.length,6)] || 1) : 1;
+  const cMult = colourOK ? (colorMult[Math.min(cards.length,6)] || 1) : 1;
+  const primaryMult = Math.max(mMult, rMult);
+  const comboMult = primaryMult * cMult;
   const ability = cards.reduce((acc,c)=>{
-    if(c.ability==='matchPlus' && matchCount>=2) return acc+3;
-    if(c.ability==='runPlus' && runCount>=3) return acc+3;
-    if(c.ability==='colorPlus' && colourCount>=2) return acc+3;
+    if(c.ability==='matchPlus' && matchOK) return acc+3;
+    if(c.ability==='runPlus' && runOK) return acc+3;
+    if(c.ability==='colorPlus' && colourOK) return acc+3;
     return acc;
   },0);
   const total = Math.floor(base * comboMult + ability);
-  const bestCombo = mMult >= rMult ? `${matchCount} same number` : `${runCount}-card sequence`;
-  return { total, base, mMult, rMult, cMult, comboMult, ability, matchCount, runCount, colourCount, bestCombo };
+  const active = [];
+  if (matchOK) active.push(`${cards.length} same number`);
+  if (runOK) active.push(`${cards.length}-card sequence`);
+  if (colourOK) active.push(`${cards.length} same colour`);
+  const bestCombo = active.length ? active.join(' + ') : 'no clean combo';
+  return { total, base, mMult, rMult, cMult, comboMult, ability, matchOK, runOK, colourOK, bestCombo };
 }
 function attack() {
   if (state.gameOver) return;
@@ -249,14 +272,14 @@ function discardSelected() {
   monster.discardUsed=true; cards.forEach(c=>state.discard.push(c)); state.hand=state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[]; drawToHand(); log(`Discarded ${cards.length} card${cards.length>1?'s':''} to dig for a better combo.`); render();
 }
 function startNextAct() { state.act++; state.defeated=0; state.encounter=1; state.monsters=[]; state.hp=Math.min(state.maxHp,state.hp+3); log(`<span class="game-over">Boss down. Act ${state.act} begins after a short rest.</span>`); fillMonsters(); drawToHand(); render(); }
-function cardReward(quality='basic') { const abilityPool = quality==='rare' ? ['wildColor','runPlus','colorPlus','matchPlus','drawOnPlay','shieldOnFail','highValue','doubleCard'] : quality==='targeted' ? ['runPlus','colorPlus','matchPlus',null] : [null,null,'highValue']; const card=makeCard(quality==='basic'?2+Math.floor(Math.random()*6):3+Math.floor(Math.random()*6), sample(quality==='rare'?[...colors,'gold']:colors), sample(abilityPool)); return { kind:'card', card, name:`Add ${card.color} ${card.n}`, text: card.ability?abilityText(card.ability):'Basic combo card.', apply:s=>s.discard.push(card) }; }
+function cardReward(quality='basic') { const abilityPool = quality==='rare' ? ['wildColor','runPlus','colorPlus','matchPlus','drawOnPlay','shieldOnFail','highValue','doubleCard'] : quality==='targeted' ? ['runPlus','colorPlus','matchPlus',null] : [null,null,'highValue']; const card=makeCard(quality==='basic'?2+Math.floor(Math.random()*6):3+Math.floor(Math.random()*6), sample(quality==='rare'?[...colors,'gold']:colors), sample(abilityPool)); return { kind:'card', card, name:`Add ${card.color} ${card.n}`, text: card.ability?abilityLongText(card.ability):'Basic combo card.', apply:s=>s.discard.push(card) }; }
 function relicReward() { return sample([ {kind:'relic', name:'Campfire Soup', text:'Heal 4 HP now.', apply:s=>s.hp=Math.min(s.maxHp,s.hp+4)}, {kind:'relic', name:'Bigger Satchel', text:'Hand size +1.', apply:s=>s.handSize+=1}, {kind:'relic', name:'Monster Manual', text:'Future targets -1.', apply:s=>s.ease+=1}, {kind:'relic', name:'Soft Boots', text:'Max HP +2 and heal 2.', apply:s=>{s.maxHp+=2; s.hp=Math.min(s.maxHp,s.hp+2)}} ]); }
 function rewardPoolFor(tier) { if(tier==='boss') return [()=>relicReward(),()=>cardReward('rare'),()=>cardReward('rare')]; if(tier==='elite') return [()=>cardReward('rare'),()=>cardReward('rare'),()=>relicReward(),()=>cardReward('targeted')]; if(tier==='tough') return [()=>cardReward('targeted'),()=>cardReward('targeted'),()=>cardReward('rare'),()=>cardReward('basic')]; return [()=>cardReward('basic'),()=>cardReward('basic'),()=>cardReward('targeted')]; }
-function miniCard(card){ return `<div class="mini-card ${card.color}"><div class="mini-num">${card.n}</div><div class="mini-suit">${card.color}</div></div>`; }
+function miniCard(card){ return `<div class="mini-card ${card.color}"><div><div class="mini-num">${card.n}</div><div class="mini-suit">${card.color}</div></div>${card.ability?`<div class="mini-suit">${abilityText(card.ability)}</div>`:''}</div>`; }
 function openRewards(tier='common') { const picks=shuffle(rewardPoolFor(tier).map(f=>f())).slice(0,3); document.getElementById('rewardSubtitle').textContent = `${tierNames[tier] || 'Boss'} reward draft: choose one. Tough fights can offer rare cards or relics.`; const wrap=document.getElementById('upgradeCards'); wrap.innerHTML=''; picks.forEach(r=>{ const b=document.createElement('button'); b.className='upgrade'; b.innerHTML = r.kind==='card' ? `<div class="reward-card">${miniCard(r.card)}<div><strong>${r.name}</strong>${r.text}</div></div>` : `<strong>Relic: ${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.kind==='card'?`${r.card.color} ${r.card.n}`:r.name); document.getElementById('upgradeModal').classList.remove('open'); log(`Reward chosen: ${r.name}.`); fillMonsters(); drawToHand(); render(); }; wrap.appendChild(b); }); document.getElementById('upgradeModal').classList.add('open'); }
 function renderMonsters(){ const el=document.getElementById('monsters'); el.innerHTML=''; state.monsters.forEach(m=>{ if(!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':''); d.onclick=()=>{state.targetId=m.id; render();}; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} reward</div><div class="type">Damage ${m.damage}${m.discardUsed?' · discard used':''}</div><div class="target-row"><div class="target">Target<strong>${m.target}</strong></div></div>`; el.appendChild(d); }); }
 function renderHand(){ const el=document.getElementById('hand'); el.innerHTML=''; state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ state.selected=state.selected.includes(c.id)?state.selected.filter(id=>id!==c.id):[...state.selected,c.id]; render(); }; d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability?`<div class="ability">${abilityText(c.ability)}</div>`:'<div></div>'}`; el.appendChild(d); }); }
-function renderPreview(){ const cards=selectedCards(), el=document.getElementById('scorePreview'); if(!cards.length){ el.innerHTML='Select cards to preview score. Random cards are weak; clean combos multiply.'; return; } const s=attackScore(cards); el.innerHTML=`<div class="score-big"><span class="score-number">${s.total}</span><strong>Attack score</strong></div><div class="score-formula"><div class="score-part"><b>${s.base}</b>base</div><div class="score-part"><b>${Math.max(s.mMult,s.rMult)}x</b>${s.mMult>=s.rMult?'same #':'sequence'}</div><div class="score-part"><b>${s.cMult}x</b>colour</div><div class="score-part"><b>+${s.ability}</b>cards</div></div><div style="margin-top:8px;">Best: ${s.bestCombo}. Colour group: ${s.colourCount}. Target selected monster: ${(state.monsters.find(m=>m.id===state.targetId)||state.monsters[0])?.target || '-'}</div>`; }
+function renderPreview(){ const cards=selectedCards(), el=document.getElementById('scorePreview'); if(!cards.length){ el.innerHTML='Select cards to preview score. Random cards are weak; clean combos multiply.'; return; } const s=attackScore(cards); el.innerHTML=`<div class="score-big"><span class="score-number">${s.total}</span><strong>Attack score</strong></div><div class="score-formula"><div class="score-part"><b>${s.base}</b>base</div><div class="score-part"><b>${Math.max(s.mMult,s.rMult)}x</b>${s.matchOK?'same #':s.runOK?'sequence':'no set'}</div><div class="score-part"><b>${s.cMult}x</b>colour</div><div class="score-part"><b>+${s.ability}</b>cards</div></div><div style="margin-top:8px;">Combo: ${s.bestCombo}. Extra off-pattern cards break bonuses. Target selected monster: ${(state.monsters.find(m=>m.id===state.targetId)||state.monsters[0])?.target || '-'}</div>`; }
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
 function render(){ document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`; document.getElementById('encounter').textContent=state.gameOver?'Done':`Act ${state.act} · ${state.defeated}/5`; document.getElementById('deckCount').textContent=state.deck.length; document.getElementById('discardCount').textContent=state.discard.length; document.getElementById('relics').innerHTML=state.relics.length?state.relics.map(r=>`<span class="relic">${r}</span>`).join(''):'<span class="relic">No added cards/relics yet</span>'; renderMonsters(); renderHand(); renderPreview(); renderLog(); ['attackBtn','discardBtn'].forEach(id=>document.getElementById(id).disabled=state.gameOver); }
 document.getElementById('attackBtn').onclick=attack;
