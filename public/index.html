@@ -70,6 +70,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .score-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.45; }
 .score-preview strong { color: var(--text); }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.single-action { grid-template-columns: 1fr; }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .relics { display: flex; flex-wrap: wrap; gap: 8px; }
 .relic { border: 1px solid var(--border); background: #1f1b18; border-radius: 999px; padding: 8px 10px; font-size: 0.85rem; color: var(--muted); }
@@ -92,7 +93,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a combo, then Strike, Sneak, or Blast. Used cards discard and immediately refill. Beat 8 encounters and survive the boss.</div>
+      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, select cards, then Attack. Your score is the card sum plus every relevant combo bonus: matching numbers, sequences, same colors, and card abilities.</div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
@@ -109,10 +110,8 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <h2 style="margin-top:18px;">Adventurer Hand</h2>
       <div class="hand" id="hand"></div>
       <div class="score-preview" id="scorePreview"></div>
-      <div class="actions">
-        <button class="action-btn" id="strikeBtn">Strike <small>pairs / triples / quads</small></button>
-        <button class="action-btn" id="sneakBtn">Sneak <small>number sequences</small></button>
-        <button class="action-btn" id="blastBtn">Blast <small>same-color groups</small></button>
+      <div class="actions single-action">
+        <button class="action-btn" id="attackBtn">Attack <small>apply every matching bonus</small></button>
       </div>
       <div class="footer-actions">
         <button id="drawBtn">Refill Hand</button>
@@ -123,10 +122,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
     <aside class="panel">
       <h2>Rules</h2>
       <ul class="rules">
-        <li><strong>Strike:</strong> sum + same-number bonus.</li>
-        <li><strong>Sneak:</strong> sum + run bonus. Same-color runs hit harder.</li>
-        <li><strong>Blast:</strong> sum + same-color bonus.</li>
-        <li>Harder monsters have higher targets but better reward drafts.</li>
+        <li><strong>Same number:</strong> pairs, triples, and quads add match bonuses.</li>
+        <li><strong>Sequence:</strong> runs like 3-4-5 add sequence bonuses.</li>
+        <li><strong>Same colour:</strong> two or more cards of one colour add colour bonuses.</li>
+        <li>Harder monsters have higher targets but better card reward drafts.</li>
       </ul>
       <h2>Relics</h2>
       <div class="relics" id="relics"></div>
@@ -151,19 +150,22 @@ const eliteNames = ['Ironroot Troll', 'Mirror Wyrm', 'Blackglass Ogre', 'Thorn K
 const bosses = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
 const tierNames = { common: 'Common', tough: 'Tough', elite: 'Elite', boss: 'Boss' };
 const tierStars = { common: '⭐', tough: '⭐⭐', elite: '⭐⭐⭐', boss: '👑' };
+const matchBonus = {1:0,2:4,3:10,4:18,5:30};
+const runBonus = {1:0,2:2,3:6,4:12,5:20,6:30};
+const colorBonus = {1:0,2:3,3:8,4:15,5:24,6:34};
 
 let state;
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function sample(a) { return a[Math.floor(Math.random()*a.length)]; }
 function makeCard(n, color, ability=null) { return { n, color, ability, id: uid() }; }
-function cardLabel(card) { return `${card.color} ${card.n}${card.ability ? ` (${abilityText(card.ability)})` : ''}`; }
 function abilityText(a) {
   return {
-    wildColor: 'wild color', wildNumber: 'wild number', runPlus: '+3 in run', colorPlus: '+3 in color set',
-    strikePlus: '+3 in match', drawOnPlay: 'draw 1', shieldOnFail: 'shield 1'
+    wildColor: 'wild colour', runPlus: '+3 sequence', colorPlus: '+3 same colour', matchPlus: '+3 same number',
+    drawOnPlay: 'draw 1', shieldOnFail: 'shield 1', highValue: '+2 value'
   }[a] || a;
 }
+function cardValue(card) { return card.n + (card.ability === 'highValue' ? 2 : 0); }
 function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push(makeCard(n, c))); return shuffle(deck); }
 function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
 
@@ -174,39 +176,24 @@ function monsterTier(level) {
   if (level <= 5) return roll < 0.58 ? 'common' : roll < 0.9 ? 'tough' : 'elite';
   return roll < 0.3 ? 'common' : roll < 0.75 ? 'tough' : 'elite';
 }
-function targetProfile(base, weakness, strength) {
-  const spread = () => Math.floor(Math.random() * 5) - 2;
-  const t = { strike: base + spread(), sneak: base + spread(), blast: base + spread() };
-  t[weakness] -= 4;
-  t[strength] += 4;
-  Object.keys(t).forEach(k => t[k] = Math.max(8, t[k] - state.ease));
-  return t;
-}
 function newMonster(level, boss=false) {
   const tier = boss ? 'boss' : monsterTier(level);
-  const baseByTier = { common: 12 + level, tough: 16 + level * 1.4, elite: 21 + level * 1.7, boss: 36 + state.ease };
+  const baseByTier = { common: 14 + level, tough: 20 + level * 1.5, elite: 27 + level * 1.9, boss: 46 };
   const damageByTier = { common: 1 + Math.floor(level / 4), tough: 2 + Math.floor(level / 4), elite: 3 + Math.floor(level / 5), boss: 6 };
-  const modes = ['strike', 'sneak', 'blast'];
-  const weakness = sample(modes);
-  const strength = sample(modes.filter(m => m !== weakness));
-  const profile = targetProfile(Math.round(baseByTier[tier]), weakness, strength);
+  const spread = Math.floor(Math.random() * 5) - 2;
   return {
     id: uid(),
     name: boss ? sample(bosses) : (tier === 'elite' ? sample(eliteNames) : sample(monsterNames)),
     boss,
     tier,
-    weakness,
-    strike: profile.strike,
-    sneak: profile.sneak,
-    blast: profile.blast,
+    target: Math.max(10, Math.round(baseByTier[tier] + spread - state.ease)),
     damage: damageByTier[tier]
   };
 }
 function start() {
   state = {
     hp: 16, maxHp: 16, encounter: 1, defeated: 0, deck: makeDeck(), discard: [], hand: [], selected: [], monsters: [],
-    mods: {strike:0,sneak:0,blast:0}, relics: [], log: [], handSize: 5, ease: 0, gameOver: false,
-    lastRewardTier: 'common', block: 0
+    relics: [], log: [], handSize: 5, ease: 0, gameOver: false
   };
   fillMonsters(); drawToHand(); log('You step onto the forest path.'); render();
 }
@@ -224,7 +211,7 @@ function drawOne() {
 }
 function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
-function sumCards(cards) { return cards.reduce((a,c)=>a+c.n,0); }
+function sumCards(cards) { return cards.reduce((a,c)=>a+cardValue(c),0); }
 function countsBy(cards, key) { return cards.reduce((acc,c)=>{ const v=c[key]; acc[v]=(acc[v]||0)+1; return acc; },{}); }
 function bestRun(cards) {
   const nums = [...new Set(cards.map(c=>c.n))].sort((a,b)=>a-b);
@@ -232,129 +219,84 @@ function bestRun(cards) {
   for (let i=1;i<nums.length;i++) { if (nums[i] === nums[i-1]+1) cur++; else cur=1; best=Math.max(best,cur); }
   return best;
 }
-function longestSameColorRun(cards) {
-  let best = 0;
-  colors.forEach(color => {
-    const same = cards.filter(c => c.color === color || c.ability === 'wildColor');
-    best = Math.max(best, bestRun(same));
-  });
-  return best;
+function bestColorCount(cards) {
+  const counts = countsBy(cards, 'color');
+  const wilds = cards.filter(c => c.ability === 'wildColor').length;
+  return Math.max(...Object.values(counts).map(v => v + wilds), wilds, 1);
 }
-function patternScore(mode, cards) {
+function bestMatchCount(cards) {
+  const counts = countsBy(cards, 'n');
+  return Math.max(...Object.values(counts), 1);
+}
+function attackScore(cards) {
   const base = sumCards(cards);
-  let bonus = 0;
-  let detail = '';
-  if (mode === 'strike') {
-    const counts = countsBy(cards, 'n');
-    const best = Math.max(...Object.values(counts), 1);
-    bonus = ({1:0,2:4,3:10,4:18,5:30})[Math.min(best,5)] || 0;
-    detail = best >= 2 ? `${best} of a kind +${bonus}` : 'no match bonus';
-  }
-  if (mode === 'sneak') {
-    const run = bestRun(cards);
-    const sameColorRun = longestSameColorRun(cards);
-    bonus = ({1:0,2:2,3:6,4:12,5:20,6:30})[Math.min(run,6)] || 0;
-    if (sameColorRun >= 3) bonus += 6;
-    detail = `${run}-card run +${({1:0,2:2,3:6,4:12,5:20,6:30})[Math.min(run,6)] || 0}${sameColorRun >= 3 ? ', same-color run +6' : ''}`;
-  }
-  if (mode === 'blast') {
-    const counts = countsBy(cards, 'color');
-    const wilds = cards.filter(c => c.ability === 'wildColor').length;
-    const best = Math.max(...Object.values(counts).map(v => v + wilds), 1);
-    bonus = ({1:0,2:3,3:8,4:15,5:24,6:34})[Math.min(best,6)] || 0;
-    detail = best >= 2 ? `${best} same color +${bonus}` : 'no color bonus';
-  }
+  const matchCount = bestMatchCount(cards);
+  const runCount = bestRun(cards);
+  const colourCount = bestColorCount(cards);
+  const match = matchBonus[Math.min(matchCount,5)] || 0;
+  const sequence = runBonus[Math.min(runCount,6)] || 0;
+  const colour = colorBonus[Math.min(colourCount,6)] || 0;
   const cardBonus = cards.reduce((acc,c) => {
-    if (c.ability === 'runPlus' && mode === 'sneak' && bestRun(cards) >= 3) return acc + 3;
-    if (c.ability === 'colorPlus' && mode === 'blast') return acc + 3;
-    if (c.ability === 'strikePlus' && mode === 'strike') return acc + 3;
+    if (c.ability === 'matchPlus' && matchCount >= 2) return acc + 3;
+    if (c.ability === 'runPlus' && runCount >= 3) return acc + 3;
+    if (c.ability === 'colorPlus' && colourCount >= 2) return acc + 3;
     return acc;
   }, 0);
-  return { total: base + bonus + cardBonus + state.mods[mode], base, bonus, cardBonus, mod: state.mods[mode], detail };
+  const parts = [];
+  if (match) parts.push(`same number: ${matchCount} cards +${match}`);
+  if (sequence) parts.push(`sequence: ${runCount} cards +${sequence}`);
+  if (colour) parts.push(`same colour: ${colourCount} cards +${colour}`);
+  if (cardBonus) parts.push(`card abilities +${cardBonus}`);
+  if (!parts.length) parts.push('no combo bonus');
+  return { total: base + match + sequence + colour + cardBonus, base, match, sequence, colour, cardBonus, detail: parts.join('; ') };
 }
-function score(mode) { return patternScore(mode, selectedCards()).total; }
-function attack(mode) {
+function attack() {
   if (state.gameOver) return;
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0];
   state.targetId = monster.id;
   const cards = selectedCards();
   if (!cards.length) { log('Choose at least one card first.'); return; }
-  const scored = patternScore(mode, cards);
-  const total = scored.total; const target = monster[mode];
+  const scored = attackScore(cards);
   const shield = cards.some(c => c.ability === 'shieldOnFail') ? 1 : 0;
   const extraDraw = cards.filter(c => c.ability === 'drawOnPlay').length;
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id)); state.selected = [];
-  if (total >= target) {
-    log(`Success! ${modeName(mode)} ${total} beats ${monster.name}'s ${target} (${scored.detail}).`);
-    state.lastRewardTier = monster.tier;
+  if (scored.total >= monster.target) {
+    log(`Success! Attack ${scored.total} beats ${monster.name}'s ${monster.target} (${scored.detail}).`);
     state.monsters = state.monsters.filter(m => m.id !== monster.id); state.defeated++; state.encounter++;
     if (monster.boss) { state.gameOver = true; log('<span class="game-over">You beat the boss. Tiny victory parade.</span>'); render(); return; }
     openRewards(monster.tier);
   } else {
     const damage = Math.max(0, monster.damage - shield);
     state.hp -= damage;
-    log(`Oof. ${modeName(mode)} ${total} misses ${monster.name}'s ${target} (${scored.detail}). Take ${damage} damage${shield ? ' after shield' : ''}.`);
+    log(`Oof. Attack ${scored.total} misses ${monster.name}'s ${monster.target} (${scored.detail}). Take ${damage} damage${shield ? ' after shield' : ''}.`);
     if (state.hp <= 0) { state.hp = 0; state.gameOver = true; log('<span class="game-over">Run over. The forest keeps your lunch money.</span>'); }
   }
   for (let i=0; i<extraDraw; i++) drawOne();
   fillMonsters(); drawToHand(); render();
 }
-function modeName(m) { return m[0].toUpperCase()+m.slice(1); }
 
 function basicCardReward() {
   const card = makeCard(2 + Math.floor(Math.random()*6), sample(colors));
-  return { name: `Add ${card.color} ${card.n}`, text: 'Add a basic card to your deck.', apply: s => s.discard.push(card) };
+  return { name: `Add ${card.color} ${card.n}`, text: 'Basic card. Good for filling sequences, colours, or number matches.', apply: s => s.discard.push(card) };
 }
 function targetedCardReward() {
-  const card = makeCard(3 + Math.floor(Math.random()*6), sample(colors), sample([null, 'runPlus', 'colorPlus', 'strikePlus']));
-  return { name: `Add ${card.color} ${card.n}`, text: `Add to deck${card.ability ? `: ${abilityText(card.ability)}.` : '.'}`, apply: s => s.discard.push(card) };
+  const card = makeCard(3 + Math.floor(Math.random()*6), sample(colors), sample(['runPlus', 'colorPlus', 'matchPlus', null]));
+  return { name: `Add ${card.color} ${card.n}`, text: card.ability ? `Card ability: ${abilityText(card.ability)}.` : 'Solid combo card.', apply: s => s.discard.push(card) };
 }
 function rareCardReward() {
-  const card = makeCard(4 + Math.floor(Math.random()*5), sample([...colors, 'gold']), sample(['wildColor', 'runPlus', 'colorPlus', 'strikePlus', 'drawOnPlay', 'shieldOnFail']));
-  return { name: `Add rare ${card.color} ${card.n}`, text: `Add to deck: ${abilityText(card.ability)}.`, apply: s => s.discard.push(card) };
+  const card = makeCard(4 + Math.floor(Math.random()*5), sample([...colors, 'gold']), sample(['wildColor', 'runPlus', 'colorPlus', 'matchPlus', 'drawOnPlay', 'shieldOnFail', 'highValue']));
+  return { name: `Add rare ${card.color} ${card.n}`, text: `Card ability: ${abilityText(card.ability)}.`, apply: s => s.discard.push(card) };
 }
-function removeLowestCard(s) {
-  const all = [...s.hand, ...s.deck, ...s.discard];
-  const removable = all.filter(c => !c.ability).sort((a,b)=>a.n-b.n)[0] || all.sort((a,b)=>a.n-b.n)[0];
-  if (!removable) return;
-  s.hand = s.hand.filter(c => c.id !== removable.id);
-  s.deck = s.deck.filter(c => c.id !== removable.id);
-  s.discard = s.discard.filter(c => c.id !== removable.id);
-}
-const commonRewards = [
-  basicCardReward,
-  basicCardReward,
-  () => ({ name: 'Campfire Soup', text: 'Heal 3 HP now.', apply: s => s.hp = Math.min(s.maxHp, s.hp + 3) }),
-  () => ({ name: 'Sharpened Stick', text: '+1 Strike.', apply: s => s.mods.strike += 1 }),
-  () => ({ name: 'Quiet Boots', text: '+1 Sneak.', apply: s => s.mods.sneak += 1 }),
-  () => ({ name: 'Spark Charm', text: '+1 Blast.', apply: s => s.mods.blast += 1 })
-];
-const toughRewards = [
-  targetedCardReward,
-  targetedCardReward,
-  basicCardReward,
-  () => ({ name: 'Bigger Satchel', text: 'Max hand size +1.', apply: s => s.handSize += 1 }),
-  () => ({ name: 'Soft Boots', text: 'Max HP +2 and heal 2.', apply: s => { s.maxHp += 2; s.hp = Math.min(s.maxHp, s.hp + 2); } }),
-  () => ({ name: 'Lucky Pebble', text: '+1 to all approaches.', apply: s => { s.mods.strike++; s.mods.sneak++; s.mods.blast++; } })
-];
-const eliteRewards = [
-  rareCardReward,
-  rareCardReward,
-  targetedCardReward,
-  () => ({ name: 'Prune the Deck', text: 'Remove your lowest plain card.', apply: removeLowestCard }),
-  () => ({ name: 'Monster Manual', text: 'Future monster targets -1.', apply: s => s.ease += 1 }),
-  () => ({ name: 'Deep Pockets', text: 'Max hand size +1 and heal 2.', apply: s => { s.handSize += 1; s.hp = Math.min(s.maxHp, s.hp + 2); } })
-];
 function rewardPoolFor(tier) {
-  if (tier === 'elite') return [...eliteRewards, ...toughRewards];
-  if (tier === 'tough') return [...toughRewards, ...commonRewards];
-  return commonRewards;
+  if (tier === 'elite') return [rareCardReward, rareCardReward, rareCardReward, targetedCardReward, targetedCardReward];
+  if (tier === 'tough') return [targetedCardReward, targetedCardReward, targetedCardReward, rareCardReward, basicCardReward];
+  return [basicCardReward, basicCardReward, basicCardReward, targetedCardReward];
 }
 function openRewards(tier='common') {
   const pool = rewardPoolFor(tier);
   const picks = shuffle(pool.map(factory => factory())).slice(0,3);
-  document.getElementById('rewardSubtitle').textContent = `${tierNames[tier]} reward draft: harder enemies offer better odds of rare cards and stronger upgrades.`;
+  document.getElementById('rewardSubtitle').textContent = `${tierNames[tier]} reward draft: choose one card to add to your discard pile. Harder enemies offer better card odds.`;
   const wrap = document.getElementById('upgradeCards'); wrap.innerHTML = '';
   picks.forEach(r => {
     const b=document.createElement('button'); b.className='upgrade';
@@ -370,7 +312,7 @@ function renderMonsters() {
     if (!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id;
     const d=document.createElement('div'); d.className='monster'+(state.targetId===m.id?' selected':'');
     d.onclick=()=>{state.targetId=m.id; render();};
-    d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} reward</div><div class="type">Damage ${m.damage} · weak to ${modeName(m.weakness)}${m.boss?' · Final boss':''}</div><div class="target-row"><div class="target">Strike<strong>${m.strike}</strong></div><div class="target">Sneak<strong>${m.sneak}</strong></div><div class="target">Blast<strong>${m.blast}</strong></div></div>`;
+    d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} card reward</div><div class="type">Damage ${m.damage}${m.boss?' · Final boss':''}</div><div class="target-row"><div class="target">Target<strong>${m.target}</strong></div></div>`;
     el.appendChild(d);
   });
 }
@@ -379,19 +321,16 @@ function renderHand() {
   state.hand.forEach(c=>{
     const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`;
     d.onclick=()=>{ state.selected = state.selected.includes(c.id) ? state.selected.filter(id=>id!==c.id) : [...state.selected,c.id]; render(); };
-    d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability ? `<div class="ability">${abilityText(c.ability)}</div>` : '<div></div>'}`;
+    d.innerHTML=`<div><div class="num">${cardValue(c)}</div><div class="suit">${c.color}${c.ability === 'highValue' ? ` base ${c.n}` : ''}</div></div>${c.ability ? `<div class="ability">${abilityText(c.ability)}</div>` : '<div></div>'}`;
     el.appendChild(d);
   });
 }
 function renderPreview() {
   const cards = selectedCards();
   const el = document.getElementById('scorePreview');
-  if (!cards.length) { el.innerHTML = 'Select cards to preview combo scores.'; return; }
-  const bits = ['strike','sneak','blast'].map(mode => {
-    const s = patternScore(mode, cards);
-    return `<strong>${modeName(mode)} ${s.total}</strong> <span>(${s.base} sum + ${s.bonus} pattern + ${s.cardBonus} card + ${s.mod} relic)</span>`;
-  });
-  el.innerHTML = bits.join('<br>');
+  if (!cards.length) { el.innerHTML = 'Select cards to preview: card sum + same-number bonus + sequence bonus + same-colour bonus + card abilities.'; return; }
+  const s = attackScore(cards);
+  el.innerHTML = `<strong>Attack ${s.total}</strong><br><span>${s.base} card sum + ${s.match} same-number + ${s.sequence} sequence + ${s.colour} same-colour + ${s.cardBonus} card abilities</span><br><span>${s.detail}</span>`;
 }
 function renderLog() { document.getElementById('log').innerHTML = state.log.join(''); }
 function render() {
@@ -399,13 +338,11 @@ function render() {
   document.getElementById('encounter').textContent = state.gameOver ? 'Done' : `${state.defeated}/9`;
   document.getElementById('deckCount').textContent = state.deck.length;
   document.getElementById('discardCount').textContent = state.discard.length;
-  document.getElementById('relics').innerHTML = state.relics.length ? state.relics.map(r=>`<span class="relic">${r}</span>`).join('') : '<span class="relic">No relics yet</span>';
+  document.getElementById('relics').innerHTML = state.relics.length ? state.relics.map(r=>`<span class="relic">${r}</span>`).join('') : '<span class="relic">No added cards yet</span>';
   renderMonsters(); renderHand(); renderPreview(); renderLog();
-  ['strikeBtn','sneakBtn','blastBtn','drawBtn'].forEach(id => document.getElementById(id).disabled = state.gameOver);
+  ['attackBtn','drawBtn'].forEach(id => document.getElementById(id).disabled = state.gameOver);
 }
-document.getElementById('strikeBtn').onclick=()=>attack('strike');
-document.getElementById('sneakBtn').onclick=()=>attack('sneak');
-document.getElementById('blastBtn').onclick=()=>attack('blast');
+document.getElementById('attackBtn').onclick=attack;
 document.getElementById('drawBtn').onclick=drawToHand;
 document.getElementById('restartBtn').onclick=start;
 start();
