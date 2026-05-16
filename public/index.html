@@ -115,7 +115,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Random cards are weak. The whole selected set must match a pattern: all same number, all in sequence, or all same colour. <strong id="buildLabel"></strong></div>
+      <div class="subtitle">A tiny deterministic card roguelite. Pick a monster, build a clean combo, then Attack. Monsters now have traits, bosses take two hits, and stronger relics let you build toward Match, Run, Colour, or Set combos. <strong id="buildLabel"></strong></div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
@@ -150,8 +150,9 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <ul class="rules">
         <li>Choose an attack type: <strong>Match</strong>, <strong>Run</strong>, <strong>Colour</strong>, or <strong>Set</strong>.</li>
         <li>Invalid selections cannot attack. Extra off-pattern cards do not help.</li>
-        <li>Score = combo value + small card-value bonus + abilities.</li>
-        <li><strong>Discard</strong> selected cards once per monster for free; extra discards cost 1 HP.</li>
+        <li>Score = combo value + card bonus + abilities + monster/relic effects.</li>
+        <li><strong>Discard</strong> selected cards once per monster for free; extra discards cost 1 HP. Tricky monsters charge immediately.</li>
+        <li>Near misses hurt less, perfect hits charge power, and big overkills can improve treasure.</li>
       </ul>
       <h2>Relics</h2>
       <div class="relics" id="relics"></div>
@@ -172,9 +173,12 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 </div>
 
 <script>
-const buildVersion = 'v2.5-explicit-attack-modes';
+const buildVersion = 'v3.0-traits-relics-hand7';
+const actLength = 5;
 const treasureChance = { common: 0.45, tough: 0.75, elite: 1, boss: 1 };
 const colors = ['red', 'green', 'blue', 'purple'];
+const displayColors = [...colors, 'gold'];
+const modes = ['match', 'run', 'colour', 'set'];
 const monsterNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const eliteNames = ['Ironroot Troll', 'Mirror Wyrm', 'Blackglass Ogre', 'Thorn Knight'];
 const bosses = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
@@ -182,75 +186,120 @@ const tierNames = { common: 'Common', tough: 'Tough', elite: 'Elite', boss: 'Bos
 const tierStars = { common: '⭐', tough: '⭐⭐', elite: '⭐⭐⭐', boss: '👑' };
 const rarityLabel = { none:'No treasure', basic:'Basic treasure', targeted:'Useful treasure', rare:'Rare treasure', boss:'Boss treasure' };
 const modeLabel = { match:'Match', run:'Run', colour:'Colour', set:'Set' };
+const traitDefs = {
+  none: { name:'Plain', text:'No special rule.' },
+  armoured: { name:'Armoured', text:'Match target +3.' },
+  skittish: { name:'Skittish', text:'Run attacks get +3.' },
+  swarm: { name:'Swarm', text:'Colour target -3.' },
+  tricky: { name:'Tricky', text:'First discard costs 1 HP.' },
+  fragile: { name:'Fragile', text:'5+ card combos get +5.' }
+};
 let state;
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function sample(a) { return a[Math.floor(Math.random()*a.length)]; }
 function makeCard(n, color, ability=null) { return { n, color, ability, id: uid() }; }
 function abilityText(a) {
-  return { wildColor:'wild colour', runPlus:'+3 sequence', colorPlus:'+3 colour', matchPlus:'+3 match', drawOnPlay:'draw 1', shieldOnFail:'shield 1', highValue:'+2', doubleCard:'2x base' }[a] || a;
+  return { wildColor:'colour wild', runPlus:'+3 sequence', colorPlus:'+3 colour', matchPlus:'+3 match', drawOnPlay:'draw 1', shieldOnFail:'shield 1', highValue:'+2', doubleCard:'2x base' }[a] || a;
 }
 function abilityLongText(a) {
-  return { wildColor:'Counts as any colour for all-same-colour sets.', runPlus:'+3 only if the whole selected set is a sequence.', colorPlus:'+3 only if the whole selected set is one colour.', matchPlus:'+3 only if the whole selected set has the same number.', drawOnPlay:'Draw 1 after attack.', shieldOnFail:'Shield 1 damage on a miss.', highValue:'+2 base points.', doubleCard:'This card contributes 2 base points.' }[a] || a;
+  return { wildColor:'Counts as any colour for Colour and Set attacks.', runPlus:'+3 only if the whole selected set is a sequence.', colorPlus:'+3 only if the whole selected set is one colour.', matchPlus:'+3 only if the whole selected set has the same number.', drawOnPlay:'Draw 1 after attack.', shieldOnFail:'Shield 1 damage on a miss.', highValue:'+2 base points.', doubleCard:'This card contributes 2 base points.' }[a] || a;
 }
 function cardBase(card) { return card.ability === 'doubleCard' ? 2 : 1; }
 function cardPoints(card) { return cardBase(card) + (card.ability === 'highValue' ? 2 : 0); }
 function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push(makeCard(n, c))); return shuffle(deck); }
 function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
 function monsterTier(level) {
-  if (level >= 5) return 'boss';
   const roll = Math.random();
-  if (level <= 2) return roll < 0.85 ? 'common' : 'tough';
-  return roll < 0.45 ? 'common' : roll < 0.82 ? 'tough' : 'elite';
+  if (level <= 2) return roll < 0.82 ? 'common' : 'tough';
+  return roll < 0.38 ? 'common' : roll < 0.78 ? 'tough' : 'elite';
 }
-function newMonster(level) {
-  const tier = monsterTier(level);
-  const boss = tier === 'boss';
-  const baseByTier = { common: 12 + level * 2, tough: 18 + level * 2.5, elite: 25 + level * 3, boss: 40 + state.act * 5 };
-  const damageByTier = { common: 1 + Math.floor(level / 3), tough: 2 + Math.floor(level / 3), elite: 3 + Math.floor(level / 4), boss: 6 };
-  const spread = Math.floor(Math.random() * 5) - 2;
-  const treasure = rollTreasure(tier);
-  return { id: uid(), name: boss ? sample(bosses) : (tier === 'elite' ? sample(eliteNames) : sample(monsterNames)), boss, tier, treasure, target: Math.max(8, Math.round(baseByTier[tier] + spread - state.ease)), damage: damageByTier[tier], discardCount:0 };
+function pickTrait(tier, boss=false) {
+  if (boss) return sample(['armoured','skittish','swarm','fragile']);
+  if (tier === 'common' && Math.random() < 0.55) return 'none';
+  const pool = tier === 'elite' ? ['armoured','skittish','swarm','tricky','fragile'] : ['skittish','swarm','tricky','fragile'];
+  return sample(pool);
 }
 function rollTreasure(tier) {
-  if (Math.random() >= (treasureChance[tier] ?? 1)) return 'none';
+  const bonus = state?.perks?.hunterMap ? 0.20 : 0;
+  if (Math.random() >= Math.min(1, (treasureChance[tier] ?? 1) + bonus)) return 'none';
   if (tier === 'boss') return 'boss';
   if (tier === 'elite') return Math.random() < 0.7 ? 'rare' : 'targeted';
   if (tier === 'tough') return Math.random() < 0.45 ? 'rare' : 'targeted';
   return Math.random() < 0.75 ? 'basic' : 'targeted';
 }
+function newMonster(level, forceBoss=false) {
+  const tier = forceBoss ? 'boss' : monsterTier(level);
+  const boss = tier === 'boss';
+  const baseByTier = { common: 12 + level * 2, tough: 18 + level * 2.5, elite: 25 + level * 3, boss: 40 + state.act * 5 };
+  const damageByTier = { common: 1 + Math.floor(level / 3), tough: 2 + Math.floor(level / 3), elite: 3 + Math.floor(level / 4), boss: 6 };
+  const spread = Math.floor(Math.random() * 5) - 2;
+  const trait = pickTrait(tier, boss);
+  return {
+    id: uid(),
+    name: boss ? sample(bosses) : (tier === 'elite' ? sample(eliteNames) : sample(monsterNames)),
+    boss,
+    tier,
+    trait,
+    treasure: rollTreasure(tier),
+    target: Math.max(8, Math.round(baseByTier[tier] + spread - state.ease)),
+    damage: damageByTier[tier] + (state.perks.bigHandRisk || 0),
+    discardCount: 0,
+    hits: 0,
+    hitsNeeded: boss ? 2 : 1,
+    weakMode: boss ? sample(modes) : null
+  };
+}
 function start() {
   document.title = `Little Quest Deck ${buildVersion}`;
-  document.getElementById('buildLabel').textContent = `${buildVersion}: explicit attack modes, deck summaries.`;
+  document.getElementById('buildLabel').textContent = `${buildVersion}: traits, build relics, boss phases, 7-card hand.`;
   document.getElementById('buildStat').textContent = buildVersion;
   console.info(`Little Quest Deck build ${buildVersion}`);
-  state = { hp:16, maxHp:16, act:1, encounter:1, defeated:0, deck:makeDeck(), discard:[], hand:[], selected:[], monsters:[], relics:[], log:[], handSize:5, ease:0, nextAttackBonus:0, gameOver:false, animating:false };
-  fillMonsters(); drawToHand(); log('You step onto the forest path.'); render();
+  state = { hp:16, maxHp:16, act:1, encounter:1, defeated:0, deck:makeDeck(), discard:[], hand:[], selected:[], monsters:[], relics:[], log:[], handSize:7, ease:0, nextAttackBonus:0, perks:{ runnerBoots:false, paintBrush:false, echoCharm:false, hunterMap:false, bigHandRisk:0 }, gameOver:false, animating:false };
+  fillMonsters(); drawToHand(); log('You step onto the forest path with a bigger starting hand.'); render();
 }
-function fillMonsters(animate=false) { while (state.monsters.length < 3 && state.defeated < 5) state.monsters.push({...newMonster(state.encounter), entering: animate}); if (state.defeated >= 5 && state.monsters.length === 0) state.monsters.push({...newMonster(5), entering: animate}); if (animate) setTimeout(()=>{ state.monsters.forEach(m=>delete m.entering); render(); }, 700); }
+function fillMonsters(animate=false) {
+  while (state.monsters.length < 3 && state.defeated < actLength) state.monsters.push({...newMonster(state.encounter), entering: animate});
+  if (state.defeated >= actLength && state.monsters.length === 0) state.monsters.push({...newMonster(actLength + 1, true), entering: animate});
+  if (animate) setTimeout(()=>{ state.monsters.forEach(m=>delete m.entering); render(); }, 700);
+}
 function drawOne() { if (!state.deck.length) { state.deck = shuffle(state.discard); state.discard = []; if (state.deck.length) log('The discard pile is shuffled back into the deck.'); } if (state.deck.length) state.hand.push(state.deck.pop()); }
 function drawToHand() { while (state.hand.length < state.handSize) drawOne(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
-function countsBy(cards, key) { return cards.reduce((acc,c)=>{ const v=c[key]; acc[v]=(acc[v]||0)+1; return acc; },{}); }
-function isWholeMatch(cards) {
-  return cards.length >= 2 && cards.every(c => c.n === cards[0].n);
-}
+function isWildColour(card) { return card.ability === 'wildColor' || card.color === 'gold'; }
+function sameOrDifferent(values) { return new Set(values).size === 1 || new Set(values).size === values.length; }
+function isWholeMatch(cards) { return cards.length >= 2 && cards.every(c => c.n === cards[0].n); }
 function isWholeRun(cards) {
-  if (cards.length < 3) return false;
+  const minRun = state?.perks?.runnerBoots ? 2 : 3;
+  if (cards.length < minRun) return false;
   const nums = cards.map(c => c.n).sort((a,b)=>a-b);
   if (new Set(nums).size !== nums.length) return false;
   return nums.every((n,i) => i === 0 || n === nums[i-1] + 1);
 }
-function isWholeColour(cards) {
+function canColour(cards, useBrush=false) {
   if (cards.length < 2) return false;
-  const nonWild = cards.filter(c => c.ability !== 'wildColor');
+  const nonWild = cards.filter(c => !isWildColour(c));
   if (!nonWild.length) return true;
-  return nonWild.every(c => c.color === nonWild[0].color);
+  const counts = nonWild.reduce((acc,c)=>{ acc[c.color]=(acc[c.color]||0)+1; return acc; },{});
+  const max = Math.max(...Object.values(counts));
+  return max >= nonWild.length - (useBrush ? 1 : 0);
 }
-function sameOrDifferent(values) {
-  return new Set(values).size === 1 || new Set(values).size === values.length;
+function isWholeColour(cards) { return canColour(cards, state?.perks?.paintBrush); }
+function colorSetPossible(cards, brushIndex=-1) {
+  const vals=[]; let wildCount=0;
+  cards.forEach((c,i)=>{ if (i === brushIndex || isWildColour(c)) wildCount++; else vals.push(c.color); });
+  const unique = new Set(vals);
+  const allSamePossible = unique.size <= 1;
+  const allDifferentPossible = unique.size === vals.length && vals.length + wildCount <= colors.length;
+  return allSamePossible || allDifferentPossible;
 }
-function isSetCombo(cards) { return cards.length >= 3 && sameOrDifferent(cards.map(c=>c.n)) && sameOrDifferent(cards.map(c=>c.color)); }
+function isSetCombo(cards) {
+  if (cards.length < 3) return false;
+  if (!sameOrDifferent(cards.map(c=>c.n))) return false;
+  if (colorSetPossible(cards)) return true;
+  if (state?.perks?.paintBrush) return cards.some((c,i)=>!isWildColour(c) && colorSetPossible(cards, i));
+  return false;
+}
 function isValidMode(cards, mode) {
   if (mode === 'match') return isWholeMatch(cards);
   if (mode === 'run') return isWholeRun(cards);
@@ -258,13 +307,26 @@ function isValidMode(cards, mode) {
   if (mode === 'set') return isSetCombo(cards);
   return false;
 }
-function attackScore(cards, mode='match') {
+function traitScoreBonus(monster, mode, cards) {
+  if (!monster) return 0;
+  let bonus = 0;
+  if (monster.trait === 'skittish' && mode === 'run') bonus += 3;
+  if (monster.trait === 'fragile' && cards.length >= 5) bonus += 5;
+  if (monster.boss && monster.weakMode === mode) bonus += 4;
+  if (state.perks.echoCharm && mode === 'match') bonus += 4;
+  return bonus;
+}
+function effectiveTarget(monster, mode) {
+  if (!monster) return 0;
+  let target = monster.target;
+  if (monster.trait === 'armoured' && mode === 'match') target += 3;
+  if (monster.trait === 'swarm' && mode === 'colour') target -= 3;
+  return Math.max(5, target);
+}
+function attackScore(cards, mode='match', monster=null) {
   const valid = isValidMode(cards, mode);
   const valueBonus = cards.reduce((a,c)=>a+Math.ceil(c.n/3)+cardPoints(c)-1,0);
-  const matchOK = isWholeMatch(cards);
-  const runOK = isWholeRun(cards);
-  const colourOK = isWholeColour(cards);
-  const setOK = isSetCombo(cards);
+  const matchOK = isWholeMatch(cards), runOK = isWholeRun(cards), colourOK = isWholeColour(cards), setOK = isSetCombo(cards);
   const ability = cards.reduce((acc,c)=>{
     if(c.ability==='matchPlus' && matchOK) return acc+3;
     if(c.ability==='runPlus' && runOK) return acc+3;
@@ -274,33 +336,60 @@ function attackScore(cards, mode='match') {
   const comboBase = { match: 4, run: 5, colour: 3, set: 7 }[mode] || 0;
   const sizeBonus = { match: 4, run: 5, colour: 3, set: 6 }[mode] || 0;
   const comboScore = valid ? comboBase + cards.length * sizeBonus : 0;
-  const total = valid ? comboScore + valueBonus + ability + state.nextAttackBonus : 0;
-  const reason = { match:'same number', run:'unbroken sequence', colour:'same colour', set:'numbers and colours all same/different' }[mode];
-  return { total, valid, valueBonus, comboScore, ability, matchOK, runOK, colourOK, setOK, bestCombo: valid ? `${cards.length}-card ${modeLabel[mode]}` : `invalid ${modeLabel[mode]} — needs ${reason}` };
+  const traitBonus = valid ? traitScoreBonus(monster, mode, cards) : 0;
+  const total = valid ? comboScore + valueBonus + ability + traitBonus + state.nextAttackBonus : 0;
+  const target = effectiveTarget(monster, mode);
+  const reason = { match:'same number', run:`unbroken sequence${state.perks.runnerBoots?' of 2+':' of 3+'}`, colour:'same colour', set:'numbers and colours all same/different' }[mode];
+  return { total, valid, valueBonus, comboScore, ability, traitBonus, target, margin: valid ? total - target : null, matchOK, runOK, colourOK, setOK, bestCombo: valid ? `${cards.length}-card ${modeLabel[mode]}` : `invalid ${modeLabel[mode]} — needs ${reason}` };
 }
+function improveTreasure(monster) {
+  if (monster.treasure === 'none') monster.treasure = 'basic';
+  else if (monster.treasure === 'basic') monster.treasure = 'targeted';
+  else if (monster.treasure === 'targeted') monster.treasure = 'rare';
+}
+function rotateBossWeakness(monster) { if (monster?.boss) monster.weakMode = sample(modes.filter(m=>m!==monster.weakMode)); }
 function attack(mode) {
   if (state.gameOver || state.animating) return;
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0]; state.targetId = monster.id;
   const cards = selectedCards(); if (!cards.length) { log('Choose at least one card first.'); return; }
-  const scored = attackScore(cards, mode); if (!scored.valid) { log(scored.bestCombo + '.'); render(); return; }
-  const shield = cards.some(c=>c.ability==='shieldOnFail') ? 1 : 0; const extraDraw = cards.filter(c=>c.ability==='drawOnPlay').length; const potion = state.nextAttackBonus; state.nextAttackBonus = 0;
+  const scored = attackScore(cards, mode, monster); if (!scored.valid) { log(scored.bestCombo + '.'); render(); return; }
+  const shield = cards.some(c=>c.ability==='shieldOnFail') ? 1 : 0;
+  const extraDraw = cards.filter(c=>c.ability==='drawOnPlay').length;
+  const potion = state.nextAttackBonus; state.nextAttackBonus = 0;
   cards.forEach(c=>state.discard.push(c)); state.hand = state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[];
-  if (scored.total >= monster.target) {
-    log(`Success! ${modeLabel[mode]} ${scored.total} beats ${monster.name}'s ${monster.target} (${scored.bestCombo})${potion?' — power potion spent':''}.`);
+  if (scored.total >= scored.target) {
+    if (scored.margin === 0) state.nextAttackBonus += 2;
+    if (scored.margin >= 8 && !monster.boss) improveTreasure(monster);
+    monster.hits++;
+    if (monster.hits < monster.hitsNeeded) {
+      rotateBossWeakness(monster);
+      log(`Hit! ${modeLabel[mode]} ${scored.total} beats ${monster.name}'s ${scored.target}, but the boss needs ${monster.hitsNeeded - monster.hits} more hit${monster.hitsNeeded - monster.hits > 1 ? 's' : ''}.${scored.margin===0?' Perfect hit: +2 power loaded.':''}`);
+      for(let i=0;i<extraDraw;i++) drawOne(); drawToHand(); render();
+      return;
+    }
+    log(`Success! ${modeLabel[mode]} ${scored.total} beats ${monster.name}'s ${scored.target} (${scored.bestCombo})${potion?' — power potion spent':''}${scored.margin===0?' Perfect hit: +2 power loaded.':''}${scored.margin>=8&&!monster.boss?' Overkill improved the treasure.':''}.`);
     monster.defeated = true;
     state.animating = true;
     render();
     setTimeout(()=>finishDefeat(monster, extraDraw), 620);
     return;
   } else {
-    const damage=Math.max(0, monster.damage-shield); state.hp-=damage;
-    log(`Oof. ${modeLabel[mode]} ${scored.total} misses ${monster.name}'s ${monster.target}${potion?' — power potion spent':''}. Take ${damage} damage${shield?' after shield':''}.`);
+    const nearMiss = scored.margin >= -2;
+    let damage = nearMiss ? Math.ceil(monster.damage / 2) : monster.damage;
+    damage = Math.max(0, damage - shield);
+    state.hp -= damage;
+    let stumble = '';
+    if (cards.length >= 5 && state.hand.length) {
+      const lost = state.hand.splice(Math.floor(Math.random() * state.hand.length), 1)[0];
+      state.discard.push(lost);
+      stumble = ` Overextended: one extra card tumbles into discard.`;
+    }
+    log(`Oof. ${modeLabel[mode]} ${scored.total} misses ${monster.name}'s ${scored.target} by ${Math.abs(scored.margin)}${potion?' — power potion spent':''}. ${nearMiss?'Near miss: ':''}Take ${damage} damage${shield?' after shield':''}.${stumble}`);
     if (state.hp<=0) { state.hp=0; state.gameOver=true; log('<span class="game-over">Run over. The forest keeps your lunch money.</span>'); }
   }
   for(let i=0;i<extraDraw;i++) drawOne(); fillMonsters(); drawToHand(); render();
 }
 function finishDefeat(monster, extraDraw=0) {
-  const tier = monster.tier;
   state.monsters = state.monsters.filter(m=>m.id!==monster.id);
   state.defeated++;
   state.encounter++;
@@ -312,30 +401,78 @@ function finishDefeat(monster, extraDraw=0) {
   if (monster.treasure && monster.treasure !== 'none') openRewards(monster.treasure, () => { fillMonsters(true); drawToHand(); render(); });
   else { log('No treasure this time. The path shifts and another monster steps in.'); fillMonsters(true); render(); }
 }
+function discardCost(monster) { if (!monster) return 0; return (monster.discardCount > 0 || monster.trait === 'tricky') ? 1 : 0; }
 function discardSelected() {
   const monster = state.monsters.find(m => m.id === state.targetId) || state.monsters[0]; if (!monster) return;
   const cards=selectedCards(); if(!cards.length){ log('Choose cards to discard first.'); return; }
-  const cost = monster.discardCount > 0 ? 1 : 0;
-  if(cost && state.hp <= 1){ log('Too risky: you need more than 1 HP to pay for an extra discard.'); return; }
+  const cost = discardCost(monster);
+  if(cost && state.hp <= 1){ log('Too risky: you need more than 1 HP to pay for that discard.'); return; }
   if(cost) state.hp -= cost;
   monster.discardCount++;
-  cards.forEach(c=>state.discard.push(c)); state.hand=state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[]; drawToHand(); log(`Discarded ${cards.length} card${cards.length>1?'s':''}${cost?' and paid 1 HP':''} to dig for a better combo.`); render();
+  cards.forEach(c=>state.discard.push(c)); state.hand=state.hand.filter(c=>!state.selected.includes(c.id)); state.selected=[]; drawToHand(); log(`Discarded ${cards.length} card${cards.length>1?'s':''}${cost?' and paid 1 HP':' for free'} to dig for a better combo.`); render();
 }
 function startNextAct() { state.act++; state.defeated=0; state.encounter=1; state.monsters=[]; state.hp=Math.min(state.maxHp,state.hp+3); log(`<span class="game-over">Boss down. Act ${state.act} begins after a short rest.</span>`); fillMonsters(true); drawToHand(); render(); }
-function cardReward(quality='basic') { const abilityPool = quality==='rare' ? ['wildColor','runPlus','colorPlus','matchPlus','drawOnPlay','shieldOnFail','highValue','doubleCard'] : quality==='targeted' ? ['runPlus','colorPlus','matchPlus',null] : [null,null,'highValue']; const card=makeCard(quality==='basic'?2+Math.floor(Math.random()*6):3+Math.floor(Math.random()*6), sample(quality==='rare'?[...colors,'gold']:colors), sample(abilityPool)); return { kind:'card', card, name:`Add ${card.color} ${card.n}`, text: card.ability?abilityLongText(card.ability):'Basic combo card.', apply:s=>s.discard.push(card) }; }
-function relicReward() { return sample([ {kind:'relic', name:'Campfire Soup', text:'Heal 4 HP now.', apply:s=>s.hp=Math.min(s.maxHp,s.hp+4)}, {kind:'relic', name:'Bigger Satchel', text:'Hand size +1.', apply:s=>s.handSize+=1}, {kind:'relic', name:'Monster Manual', text:'Future targets -1.', apply:s=>s.ease+=1}, {kind:'relic', name:'Soft Boots', text:'Max HP +2 and heal 2.', apply:s=>{s.maxHp+=2; s.hp=Math.min(s.maxHp,s.hp+2)}}, {kind:'relic', name:'Power Potion', text:'+6 to your next attack only.', apply:s=>s.nextAttackBonus+=6}, {kind:'relic', name:'Salvage Snack', text:'Discard 2 from deck, then heal 2 HP.', apply:s=>{ for(let i=0;i<2;i++) if(s.deck.length) s.discard.push(s.deck.pop()); s.hp=Math.min(s.maxHp,s.hp+2); }} ]); }
-function rewardPoolFor(rarity) { if(rarity==='boss') return [()=>relicReward(),()=>cardReward('rare'),()=>cardReward('rare')]; if(rarity==='rare') return [()=>cardReward('rare'),()=>cardReward('rare'),()=>relicReward(),()=>cardReward('targeted')]; if(rarity==='targeted') return [()=>cardReward('targeted'),()=>cardReward('targeted'),()=>relicReward(),()=>cardReward('basic')]; return [()=>cardReward('basic'),()=>cardReward('basic'),()=>cardReward('targeted')]; }
+function cardReward(quality='basic') {
+  const abilityPool = quality==='rare' ? ['wildColor','runPlus','colorPlus','matchPlus','drawOnPlay','shieldOnFail','highValue','doubleCard'] : quality==='targeted' ? ['runPlus','colorPlus','matchPlus','wildColor',null] : [null,null,'highValue'];
+  const card=makeCard(quality==='basic'?2+Math.floor(Math.random()*6):3+Math.floor(Math.random()*6), sample(quality==='rare'?[...colors,'gold']:colors), sample(abilityPool));
+  return { kind:'card', card, name:`Add ${card.color} ${card.n}`, text: card.ability?abilityLongText(card.ability):'Basic combo card.', apply:s=>s.discard.push(card) };
+}
+function relicChoices() {
+  const choices = [
+    {kind:'relic', id:'campfire', name:'Campfire Soup', text:'Heal 4 HP now.', apply:s=>s.hp=Math.min(s.maxHp,s.hp+4)},
+    {kind:'relic', id:'satchel', name:'Bigger Satchel', text:'Hand size +1.', apply:s=>s.handSize+=1},
+    {kind:'relic', id:'manual', name:'Monster Manual', text:'Future targets -1.', apply:s=>s.ease+=1},
+    {kind:'relic', id:'softBoots', name:'Soft Boots', text:'Max HP +2 and heal 2.', apply:s=>{s.maxHp+=2; s.hp=Math.min(s.maxHp,s.hp+2)}},
+    {kind:'relic', id:'potion', name:'Power Potion', text:'+6 to your next attack only.', apply:s=>s.nextAttackBonus+=6},
+    {kind:'relic', id:'salvage', name:'Salvage Snack', text:'Discard 2 from deck, then heal 2 HP.', apply:s=>{ for(let i=0;i<2;i++) if(s.deck.length) s.discard.push(s.deck.pop()); s.hp=Math.min(s.maxHp,s.hp+2); }},
+    {kind:'relic', id:'runnerBoots', name:"Runner's Boots", text:'Run attacks can use 2-card sequences.', unique:true, apply:s=>s.perks.runnerBoots=true},
+    {kind:'relic', id:'paintBrush', name:'Paint Brush', text:'Colour and Set attacks can ignore one awkward colour.', unique:true, apply:s=>s.perks.paintBrush=true},
+    {kind:'relic', id:'echoCharm', name:'Echo Charm', text:'Match attacks get +4.', unique:true, apply:s=>s.perks.echoCharm=true},
+    {kind:'relic', id:'bigHand', name:'Big Hand', text:'Hand size +1, but new monsters deal +1 damage.', apply:s=>{s.handSize+=1; s.perks.bigHandRisk=(s.perks.bigHandRisk||0)+1;}},
+    {kind:'relic', id:'hunterMap', name:"Hunter's Map", text:'Monsters are more likely to carry treasure.', unique:true, apply:s=>s.perks.hunterMap=true}
+  ];
+  return choices.filter(r=>!r.unique || !state.perks[r.id]);
+}
+function relicReward() { return sample(relicChoices()); }
+function rewardPoolFor(rarity) { if(rarity==='boss') return [()=>relicReward(),()=>cardReward('rare'),()=>cardReward('rare'),()=>relicReward()]; if(rarity==='rare') return [()=>cardReward('rare'),()=>cardReward('rare'),()=>relicReward(),()=>cardReward('targeted'),()=>relicReward()]; if(rarity==='targeted') return [()=>cardReward('targeted'),()=>cardReward('targeted'),()=>relicReward(),()=>cardReward('basic')]; return [()=>cardReward('basic'),()=>cardReward('basic'),()=>cardReward('targeted'),()=>relicReward()]; }
 function miniCard(card){ return `<div class="mini-card ${card.color}"><div><div class="mini-num">${card.n}</div><div class="mini-suit">${card.color}</div></div>${card.ability?`<div class="mini-suit">${abilityText(card.ability)}</div>`:''}</div>`; }
 function closeRewards(msg, afterClose=()=>{}) { document.getElementById('upgradeModal').classList.remove('open'); log(msg); afterClose(); }
-function openRewards(rarity='basic', afterClose=()=>{}) { const picks=shuffle(rewardPoolFor(rarity).map(f=>f())).slice(0,3); document.getElementById('rewardSubtitle').textContent = `${rarityLabel[rarity] || 'Treasure'} draft: choose one, or skip to keep the deck lean.`; const wrap=document.getElementById('upgradeCards'); wrap.innerHTML=''; picks.forEach(r=>{ const b=document.createElement('button'); b.className='upgrade'; b.innerHTML = r.kind==='card' ? `<div class="reward-card">${miniCard(r.card)}<div><strong>${r.name}</strong>${r.text}</div></div>` : `<strong>Relic: ${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.kind==='card'?`${r.card.color} ${r.card.n}`:r.name); closeRewards(`Reward chosen: ${r.name}.`, afterClose); }; wrap.appendChild(b); }); const skip=document.createElement('button'); skip.className='upgrade skip-reward'; skip.innerHTML='<strong>Skip</strong>Take nothing and keep the deck lean.'; skip.onclick=()=>closeRewards('Reward skipped.', afterClose); wrap.appendChild(skip); document.getElementById('upgradeModal').classList.add('open'); }
-function renderMonsters(){ const el=document.getElementById('monsters'); el.innerHTML=''; state.monsters.forEach(m=>{ if(!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className=['monster', state.targetId===m.id?'selected':'', m.defeated?'defeated':'', m.entering?'entering':''].filter(Boolean).join(' '); d.onclick=()=>{ if(!state.animating){ state.targetId=m.id; render(); } }; const treasure = m.treasure && m.treasure !== 'none' ? `🎁 ${rarityLabel[m.treasure]}` : 'No treasure'; d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} · ${treasure}</div><div class="type">Damage ${m.damage}${m.discardCount?` · discards ${m.discardCount}`:''}</div><div class="target-row"><div class="target">HP / Target<strong>${m.target}</strong></div></div>`; el.appendChild(d); }); }
+function openRewards(rarity='basic', afterClose=()=>{}) {
+  const picks=shuffle(rewardPoolFor(rarity).map(f=>f())).slice(0,3);
+  document.getElementById('rewardSubtitle').textContent = `${rarityLabel[rarity] || 'Treasure'} draft: choose one, or skip to keep the deck lean.`;
+  const wrap=document.getElementById('upgradeCards'); wrap.innerHTML='';
+  picks.forEach(r=>{ const b=document.createElement('button'); b.className='upgrade'; b.innerHTML = r.kind==='card' ? `<div class="reward-card">${miniCard(r.card)}<div><strong>${r.name}</strong>${r.text}</div></div>` : `<strong>Relic: ${r.name}</strong>${r.text}`; b.onclick=()=>{ r.apply(state); state.relics.push(r.kind==='card'?`${r.card.color} ${r.card.n}${r.card.ability?` (${abilityText(r.card.ability)})`:''}`:r.name); closeRewards(`Reward chosen: ${r.name}.`, afterClose); }; wrap.appendChild(b); });
+  const skip=document.createElement('button'); skip.className='upgrade skip-reward'; skip.innerHTML='<strong>Skip</strong>Take nothing and keep the deck lean.'; skip.onclick=()=>closeRewards('Reward skipped.', afterClose); wrap.appendChild(skip); document.getElementById('upgradeModal').classList.add('open');
+}
+function renderMonsters(){
+  const el=document.getElementById('monsters'); el.innerHTML='';
+  state.monsters.forEach(m=>{ if(!state.targetId || !state.monsters.find(x=>x.id===state.targetId)) state.targetId=state.monsters[0]?.id; const d=document.createElement('div'); d.className=['monster', state.targetId===m.id?'selected':'', m.defeated?'defeated':'', m.entering?'entering':''].filter(Boolean).join(' '); d.onclick=()=>{ if(!state.animating){ state.targetId=m.id; render(); } }; const treasure = m.treasure && m.treasure !== 'none' ? `🎁 ${rarityLabel[m.treasure]}` : 'No treasure'; const trait = traitDefs[m.trait] || traitDefs.none; const bossBits = m.boss ? ` · Hits ${m.hits}/${m.hitsNeeded} · Weak: ${modeLabel[m.weakMode]}` : ''; const discard = m.trait === 'tricky' && !m.discardCount ? 'No free discard' : (m.discardCount ? 'Free discard used' : 'Free discard ready'); d.innerHTML=`<div class="name">${m.boss?'👑 ':''}${m.name}</div><div class="tier">${tierStars[m.tier]} ${tierNames[m.tier]} · ${treasure}</div><div class="type"><strong>${trait.name}</strong>: ${trait.text}${bossBits}</div><div class="type">Damage ${m.damage} · ${discard}</div><div class="target-row"><div class="target">Base Target<strong>${m.target}</strong></div></div>`; el.appendChild(d); });
+}
 function renderHand(){ const el=document.getElementById('hand'); el.innerHTML=''; state.hand.forEach(c=>{ const d=document.createElement('div'); d.className=`card ${c.color}${state.selected.includes(c.id)?' selected':''}`; d.onclick=()=>{ if(state.animating) return; state.selected=state.selected.includes(c.id)?state.selected.filter(id=>id!==c.id):[...state.selected,c.id]; render(); }; d.innerHTML=`<div><div class="num">${c.n}</div><div class="suit">${c.color}</div></div>${c.ability?`<div class="ability">${abilityText(c.ability)}</div>`:'<div></div>'}`; el.appendChild(d); }); }
-function renderPreview(){ const cards=selectedCards(), el=document.getElementById('scorePreview'); if(!cards.length){ el.innerHTML=`Select cards, then choose Match, Run, Colour, or Set. Invalid extra cards cannot attack.${state.nextAttackBonus?` Power Potion ready: +${state.nextAttackBonus} next attack.`:''}`; return; } const scores=['match','run','colour','set'].map(mode=>[mode,attackScore(cards,mode)]); const target=(state.monsters.find(m=>m.id===state.targetId)||state.monsters[0])?.target || '-'; el.innerHTML=`<div class="score-big"><span class="score-number">${cards.length}</span><strong>selected card${cards.length>1?'s':''}</strong></div><div class="score-formula">${scores.map(([mode,s])=>`<div class="score-part"><b>${s.valid?s.total:'—'}</b>${modeLabel[mode]}</div>`).join('')}</div><div style="margin-top:8px;">Valid attacks only. Score = combo + card-value bonus + abilities. Target selected monster: ${target}</div>`; }
+function renderPreview(){
+  const cards=selectedCards(), el=document.getElementById('scorePreview'); const monster=state.monsters.find(m=>m.id===state.targetId)||state.monsters[0];
+  if(!cards.length){ el.innerHTML=`Select cards, then choose Match, Run, Colour, or Set. Best move feedback appears here.${state.nextAttackBonus?` Power Potion ready: +${state.nextAttackBonus} next attack.`:''}`; return; }
+  const scores=modes.map(mode=>[mode,attackScore(cards,mode,monster)]);
+  const valid=scores.filter(([,s])=>s.valid).sort((a,b)=>b[1].margin-a[1].margin || b[1].total-a[1].total);
+  let verdict = 'No valid combo yet.';
+  if(valid.length){ const [mode,s]=valid[0]; verdict = `Best: <strong>${modeLabel[mode]} ${s.total}</strong> vs target ${s.target} — ${s.margin>=0?`beats by ${s.margin}`:`short by ${Math.abs(s.margin)}`}.`; }
+  el.innerHTML=`<div class="score-big"><span class="score-number">${cards.length}</span><strong>selected card${cards.length>1?'s':''}</strong></div><div>${verdict}</div><div class="score-formula">${scores.map(([mode,s])=>`<div class="score-part"><b>${s.valid?`${s.total}/${s.target}`:'—'}</b>${modeLabel[mode]}</div>`).join('')}</div><div style="margin-top:8px;">Trait/relic effects are included. ${state.perks.paintBrush?'Paint Brush active. ':''}${state.perks.runnerBoots?'Runner\'s Boots active. ':''}${state.nextAttackBonus?`Power Potion: +${state.nextAttackBonus}.`:''}</div>`;
+}
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
 function countCards(cards, keyFn){ return cards.reduce((acc,c)=>{ const k=keyFn(c); acc[k]=(acc[k]||0)+1; return acc; },{}); }
 function pills(counts, order){ return order.map(k=>`<span class="deck-pill">${k}: <strong>${counts[k]||0}</strong></span>`).join(''); }
-function renderDeckList(){ const all=[...state.deck,...state.hand,...state.discard]; const colorCounts=countCards(all,c=>c.color); const numberCounts=countCards(all,c=>c.n); const abilityCounts=countCards(all,c=>c.ability?abilityText(c.ability):'plain'); document.getElementById('deckList').innerHTML=`<div class="deck-group"><h3>Colours</h3><div class="deck-counts">${pills(colorCounts,colors)}</div></div><div class="deck-group"><h3>Numbers</h3><div class="deck-counts">${pills(numberCounts,[1,2,3,4,5,6,7,8])}</div></div><div class="deck-group"><h3>Abilities</h3><div class="deck-counts">${Object.keys(abilityCounts).sort().map(k=>`<span class="deck-pill">${k}: <strong>${abilityCounts[k]}</strong></span>`).join('')}</div></div>`; }
-function render(){ document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`; document.getElementById('encounter').textContent=state.gameOver?'Done':`Act ${state.act} · ${state.defeated}/5`; document.getElementById('deckCount').textContent=state.deck.length; document.getElementById('discardCount').textContent=state.discard.length; const relics=[...state.relics]; if(state.nextAttackBonus) relics.unshift(`Power Potion +${state.nextAttackBonus}`); document.getElementById('relics').innerHTML=relics.length?relics.map(r=>`<span class="relic">${r}</span>`).join(''):'<span class="relic">No added cards/relics yet</span>'; renderMonsters(); renderHand(); renderPreview(); renderLog(); renderDeckList(); ['matchBtn','runBtn','colourBtn','setBtn','discardBtn'].forEach(id=>document.getElementById(id).disabled=state.gameOver || state.animating); }
+function renderDeckList(){ const all=[...state.deck,...state.hand,...state.discard]; const colorCounts=countCards(all,c=>c.color); const numberCounts=countCards(all,c=>c.n); const abilityCounts=countCards(all,c=>c.ability?abilityText(c.ability):'plain'); document.getElementById('deckList').innerHTML=`<div class="deck-group"><h3>Colours</h3><div class="deck-counts">${pills(colorCounts,displayColors)}</div></div><div class="deck-group"><h3>Numbers</h3><div class="deck-counts">${pills(numberCounts,[1,2,3,4,5,6,7,8])}</div></div><div class="deck-group"><h3>Abilities</h3><div class="deck-counts">${Object.keys(abilityCounts).sort().map(k=>`<span class="deck-pill">${k}: <strong>${abilityCounts[k]}</strong></span>`).join('')}</div></div>`; }
+function render(){
+  document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`;
+  document.getElementById('encounter').textContent=state.gameOver?'Done':`Act ${state.act} · ${state.defeated}/${actLength}`;
+  document.getElementById('deckCount').textContent=state.deck.length;
+  document.getElementById('discardCount').textContent=state.discard.length;
+  const relics=[...state.relics]; if(state.nextAttackBonus) relics.unshift(`Power Potion +${state.nextAttackBonus}`);
+  document.getElementById('relics').innerHTML=relics.length?relics.map(r=>`<span class="relic">${r}</span>`).join(''):'<span class="relic">No added cards/relics yet</span>';
+  renderMonsters(); renderHand(); renderPreview(); renderLog(); renderDeckList();
+  const monster = state.monsters.find(m=>m.id===state.targetId)||state.monsters[0]; const cost = discardCost(monster); const discardBtn=document.getElementById('discardBtn'); discardBtn.textContent = cost ? 'Discard Selected — Costs 1 HP' : 'Discard Selected — Free';
+  ['matchBtn','runBtn','colourBtn','setBtn','discardBtn'].forEach(id=>document.getElementById(id).disabled=state.gameOver || state.animating);
+}
 document.getElementById('matchBtn').onclick=()=>attack('match');
 document.getElementById('runBtn').onclick=()=>attack('run');
 document.getElementById('colourBtn').onclick=()=>attack('colour');
