@@ -37,6 +37,8 @@ button {
 }
 button:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-1px); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.attack-ready { background: #2f5f35; border-color: var(--green); }
+button.attack-short { background: #67302b; border-color: var(--red); }
 .app { max-width: 1120px; margin: 0 auto; padding: 24px; }
 .header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
@@ -67,7 +69,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .score-formula { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; margin-top:8px; }
 .score-part { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:8px; text-align:center; }
 .score-part b { display:block; color:var(--text); font-size:1.05rem; }
-.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .deck-list { display: grid; gap: 10px; background: rgba(0,0,0,0.14); border-radius: 12px; padding: 10px; }
 .deck-group h3 { margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -86,7 +88,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Each turn, choose one of three actions: Attack with selected cards, Draw One to grow your hand, or Discard X → Draw X to cycle cards without increasing hand size. Draw and cycle both let the enemy hit you for HP. <strong id="buildLabel"></strong></div>
+      <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Each turn, choose one of two actions: Attack with selected cards, or Discard X → Draw X to cycle cards without increasing hand size. Cycling lets the enemy hit you for HP. Attacks refill your hand back toward your current hand size. <strong id="buildLabel"></strong></div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
@@ -107,8 +109,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <div class="score-preview" id="scorePreview"></div>
       <div class="actions">
         <button class="action-btn" id="attackBtn">Attack <small>auto-best combo</small></button>
-        <button class="action-btn" id="drawBtn">Draw One <small>hand +1; enemy reacts</small></button>
-        <button class="action-btn" id="discardBtn">Discard X → Draw X <small>selected cards; enemy reacts</small></button>
+        <button class="action-btn" id="discardBtn">Discard X → Draw X <small>selected cards; enemy hits</small></button>
       </div>
       <div class="actions" style="grid-template-columns: 1fr;">
         <button id="restartBtn">Restart Run</button>
@@ -118,12 +119,12 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
     <aside class="panel">
       <h2>Rules</h2>
       <ul class="rules">
-        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Run, Colour, or Set.</li>
+        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Run, Colour, or Set. The Attack button turns green when the selected attack beats the enemy target, red when it is short.</li>
         <li><strong>Score math:</strong> combo base + card count bonus + card value bonus. Card value bonus = ceil(card number / 3) for each played card.</li>
         <li><strong>Combo values:</strong> Match = 5 + 4/card; Run = 7 + 5/card; Colour = 4 + 3/card; Set = 9 + 6/card. Then add card value bonus.</li>
         <li><strong>Valid combos:</strong> Match = 2+ same number; Run = 3+ consecutive numbers; Colour = 2+ same colour; Set = 3+ numbers all same/all different and colours all same/all different.</li>
-        <li><strong>Draw One</strong> adds one adventure card, up to a max hand size of 9, then the enemy attacks.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
+        <li>After an attack, played cards are replaced up to your current hand size. Future buffs can raise that hand size.</li>
         <li>Enemy attacks deal HP damage only in this build.</li>
         <li>No treasures, rewards, relics, traits, enemy modifiers, or attack-type buttons in this build.</li>
       </ul>
@@ -136,8 +137,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 </div>
 
 <script>
-const buildVersion = 'v4.0-back-to-basics';
-const maxHandSize = 9;
+const buildVersion = 'v4.1-two-actions';
 const startHandSize = 6;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'run', 'colour', 'set'];
@@ -172,6 +172,7 @@ function start() {
     deck: makeDeck(),
     discard: [],
     hand: [],
+    handSize: startHandSize,
     selected: [],
     enemy: null,
     log: [],
@@ -189,7 +190,7 @@ function drawOne(announce=true) {
     state.discard = [];
     if (state.deck.length && announce) log('The discard pile is shuffled back into the deck.');
   }
-  if (state.deck.length && state.hand.length < maxHandSize) {
+  if (state.deck.length) {
     state.hand.push(state.deck.pop());
     return true;
   }
@@ -253,7 +254,7 @@ function attack() {
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
   let drawn = 0;
-  for (let i = 0; i < playedCount; i++) if (drawOne()) drawn++;
+  while (state.hand.length < state.handSize) if (drawOne()) drawn++; else break;
 
   if (best.total >= state.enemy.target) {
     log(`Success: ${modeLabel[best.mode]} ${best.total} beats ${state.enemy.name}'s ${state.enemy.target}. Played ${playedCount}, drew ${drawn}.`);
@@ -264,16 +265,6 @@ function attack() {
     log(`Miss: ${modeLabel[best.mode]} ${best.total} is short of ${state.enemy.name}'s ${state.enemy.target} by ${Math.abs(best.margin)}. Played ${playedCount}, drew ${drawn}.`);
     enemyAttack('a failed attack');
   }
-  render();
-}
-
-function drawAction() {
-  if (state.gameOver) return;
-  if (state.hand.length >= maxHandSize) { log('Hand is full at 9 cards.'); return; }
-  const ok = drawOne();
-  if (!ok) { log('No adventure cards left to draw.'); return; }
-  log('You draw 1 adventure card.');
-  enemyAttack('drawing');
   render();
 }
 
@@ -326,17 +317,19 @@ function renderDeckList(){
 function render(){
   document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`;
   document.getElementById('encounter').textContent=`${state.defeated + 1}`;
-  document.getElementById('handCount').textContent=`${state.hand.length}/${maxHandSize}`;
+  document.getElementById('handCount').textContent=`${state.hand.length}/${state.handSize}`;
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
   renderEnemy(); renderHand(); renderPreview(); renderLog(); renderDeckList();
-  document.getElementById('attackBtn').disabled=state.gameOver;
-  document.getElementById('drawBtn').disabled=state.gameOver || state.hand.length >= maxHandSize;
+  const attackBtn = document.getElementById('attackBtn');
+  const best = bestAttack(selectedCards());
+  attackBtn.disabled = state.gameOver;
+  attackBtn.classList.toggle('attack-ready', !!best && best.total >= state.enemy.target && !state.gameOver);
+  attackBtn.classList.toggle('attack-short', !!best && best.total < state.enemy.target && !state.gameOver);
   document.getElementById('discardBtn').disabled=state.gameOver;
 }
 
 document.getElementById('attackBtn').onclick=attack;
-document.getElementById('drawBtn').onclick=drawAction;
 document.getElementById('discardBtn').onclick=discardSelected;
 document.getElementById('restartBtn').onclick=start;
 start();
