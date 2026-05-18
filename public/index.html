@@ -200,9 +200,9 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
       <ul class="rules">
         <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Pair, Two Pair, Three of a Kind, Straight, Flush, Full House, Four of a Kind, or Straight Flush. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
         <li>Starting hand size is 5. Hand size can rise to a max of 7.</li>
-        <li><strong>Score math:</strong> selected cards × base × poker-hand rarity multiplier. Weakness doubles the result. Weapons add bonus damage to their attack type.</li>
-        <li><strong>Rarity multipliers:</strong> Pair ×1.0, Two Pair ×1.25, Three Kind ×1.8, Straight ×1.6, Flush ×1.7, Full House ×2.6, Four Kind ×3.8, Straight Flush ×5.5.</li>
-        <li><strong>Valid combos:</strong> Pair, Two Pair, Three of a Kind, Straight, Flush, Full House, Four of a Kind, and Straight Flush. Straights/Flushes use 5 cards.</li>
+        <li><strong>Score math:</strong> selected card count × size multiplier × hand-rarity multiplier. Weakness doubles the result. Weapons add bonus damage to their attack type.</li>
+        <li><strong>Rarity multipliers:</strong> Pair ×1.0, Two Pair ×1.25, Three Kind ×1.8, Straight ×1.6, Flush ×1.7, Full House ×2.6, Four Kind ×3.8, Straight Flush ×5.5. Larger selected combos still scale up by size.</li>
+        <li><strong>Valid combos:</strong> Pair = 2+ same number; Two Pair = two pairs; Three/Four of a Kind = 3+/4 same number; Straight = 3+ consecutive numbers; Flush = 3+ same colour; Full House = 3 of a kind + pair; Straight Flush = 3+ consecutive cards of one colour.</li>
         <li>Straight Flush is powerful enough already, so enemies do not have Straight Flush as a weakness.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
         <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
@@ -223,7 +223,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.13-poker-final-boss';
+const buildVersion = 'v4.14-flexible-combos';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -327,23 +327,23 @@ function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function rankCounts(cards) { return Object.values(countCards(cards, c => c.n)).sort((a,b)=>b-a); }
 function hasCount(cards, count) { return rankCounts(cards).includes(count); }
-function isPair(cards) { return cards.length === 2 && hasCount(cards, 2); }
-function isTwoPair(cards) { return cards.length === 4 && rankCounts(cards).filter(v => v === 2).length === 2; }
-function isThreeKind(cards) { return cards.length === 3 && hasCount(cards, 3); }
-function isFourKind(cards) { return cards.length === 4 && hasCount(cards, 4); }
+function isPair(cards) { return cards.length >= 2 && hasCount(cards, 2); }
+function isTwoPair(cards) { return cards.length >= 4 && rankCounts(cards).filter(v => v >= 2).length >= 2; }
+function isThreeKind(cards) { return cards.length >= 3 && hasCount(cards, 3); }
+function isFourKind(cards) { return cards.length >= 4 && hasCount(cards, 4); }
 function isFullHouse(cards) {
-  if (cards.length !== 5) return false;
+  if (cards.length < 5) return false;
   const counts = rankCounts(cards);
-  return counts[0] === 3 && counts[1] === 2;
+  return counts[0] >= 3 && counts.slice(1).some(v => v >= 2);
 }
 function isStraight(cards) {
-  if (cards.length !== 5) return false;
+  if (cards.length < 3) return false;
   const nums = cards.map(c => c.n).sort((a,b)=>a-b);
   if (new Set(nums).size !== nums.length) return false;
   return nums.every((n,i) => i === 0 || n === nums[i-1] + 1);
 }
-function isFlush(cards) { return cards.length === 5 && cards.every(c => c.color === cards[0].color); }
-function isStraightFlush(cards) { return cards.length === 5 && isStraight(cards) && isFlush(cards); }
+function isFlush(cards) { return cards.length >= 3 && cards.every(c => c.color === cards[0].color); }
+function isStraightFlush(cards) { return cards.length >= 3 && isStraight(cards) && isFlush(cards); }
 function isValidMode(cards, mode) {
   if (mode === 'pair') return isPair(cards);
   if (mode === 'twoPair') return isTwoPair(cards);
@@ -355,21 +355,24 @@ function isValidMode(cards, mode) {
   if (mode === 'straightFlush') return isStraightFlush(cards);
   return false;
 }
+function sizeMultiplier(count) { return Math.pow(2, Math.max(0, count - 1)); }
 function attackScore(cards, mode) {
   const valid = isValidMode(cards, mode);
   const handMult = rarityMult[mode] || 1;
+  const sizeMult = sizeMultiplier(cards.length);
   const weaknessMult = state.enemy?.weakness === mode ? 2 : 1;
   const weaponBonus = state.equipment.weapon?.mode === mode ? state.equipment.weapon.bonus : 0;
   const itemBonus = state.equipment.item?.damageBonus || 0;
-  const baseTotal = valid ? Math.floor(cards.length * 4 * handMult * weaknessMult) : 0;
+  const baseTotal = valid ? Math.floor(cards.length * sizeMult * handMult * weaknessMult) : 0;
   const total = valid ? baseTotal + weaponBonus + itemBonus : 0;
-  const pieces = [`${cards.length} cards`, `×${handMult} rarity`, '×4 base'];
+  const pieces = [`${cards.length} cards`, `×${sizeMult} size`, `×${handMult} rarity`];
   if (weaknessMult > 1) pieces.push('×2 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
   if (itemBonus) pieces.push(`+${itemBonus} item`);
   const formula = valid ? `${pieces.join(' ')} = ${total}` : '';
-  return { mode, valid, total, multiplier: handMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
+  return { mode, valid, total, multiplier: sizeMult * handMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
 }
+
 function bestAttack(cards) {
   const scores = modes.map(mode => attackScore(cards, mode));
   return scores.filter(s => s.valid).sort((a,b)=>b.total-a.total)[0] || null;
@@ -438,8 +441,11 @@ function addGold(amount, reason) {
 function openRewardChoice(item) {
   state.pendingReward = item;
   const sellValue = item.value || 5;
-  showModal(`<h2>Found Gear</h2><p>${itemModalDescription(item)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button></div>`);
+  const current = state.equipment[item.slot];
+  const slotLabel = item.slot[0].toUpperCase() + item.slot.slice(1);
+  showModal(`<h2>Found ${slotLabel}</h2><p><strong>New:</strong><br>${itemModalDescription(item)}</p><p><strong>Current ${slotLabel}:</strong><br>${itemModalDescription(current)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip new ${slotLabel}</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button></div>`);
 }
+
 
 function equipPendingReward() {
   if (!state.pendingReward) return;
@@ -468,7 +474,7 @@ function makeShopOffers() {
 function openShop() {
   state.shopOffers = makeShopOffers();
   const offers = state.shopOffers.map((offer,i)=>{
-    const desc = offer.kind === 'gear' ? itemModalDescription(offer.item) : `${offer.label} — ${offer.text}`;
+    const desc = offer.kind === 'gear' ? `${itemModalDescription(offer.item)}<br><small>Current ${offer.item.slot}: ${itemDescription(state.equipment[offer.item.slot])}</small>` : `${offer.label} — ${offer.text}`;
     return `<div class="shop-offer"><strong>${desc}</strong><br><small>${offer.cost} gold</small><button ${state.gold < offer.cost ? 'disabled' : ''} onclick="buyShopOffer(${i})">Buy</button></div>`;
   }).join('');
   showModal(`<h2>🛒 Roadside Supply Store</h2><p>The boss drops a purse and a suspiciously well-placed shop appears. Gold: <strong>${state.gold}</strong></p><div class="modal-actions">${offers}<button onclick="leaveShop()">Leave shop</button></div>`);
