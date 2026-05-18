@@ -57,7 +57,10 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; color: var(--muted); font-size:0.9rem; }
 .stat strong { color: var(--text); }
 .grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr); gap: 14px; align-items:start; }
-.info-grid { display:grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr); gap:14px; margin-top:14px; align-items:start; }
+.info-grid { display:grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr); gap:14px; margin-top:14px; align-items:start; }
+.info-main { grid-column: 1; }
+.info-side { grid-column: 2; }
+.rules-row { grid-column: 1 / -1; }
 .player-panel, .monster-panel { min-height: 100%; }
 .panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
 .panel h2 { margin: 0 0 12px; font-size: 1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.12em; }
@@ -83,14 +86,15 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .combat-actions { margin-top: 10px; margin-bottom: 10px; }
 .combat-actions button { min-height: 58px; font-size: 1.05rem; border-width: 2px; }
-.combat-actions #attackBtn { background: #5c411e; border-color: var(--gold); }
+.combat-actions #attackBtn { background: #4b3620; border-color: var(--border); }
+.combat-actions #attackBtn.attack-ready { background: #2f5f35; border-color: var(--green); }
+.combat-actions #attackBtn.attack-short { background: #67302b; border-color: var(--red); }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
-.reward-banner { margin: 12px 0; border: 1px solid var(--gold); border-radius: 14px; padding: 10px 12px; background: rgba(226,180,92,0.14); color: var(--text); font-weight: 850; }
+.reward-banner { margin: 12px 0; border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; background: rgba(0,0,0,0.12); color: var(--muted); font-weight: 750; }
 .equipment { display:grid; gap:8px; margin-bottom:14px; }
 .slot { border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:rgba(0,0,0,0.14); color:var(--muted); }
 .slot strong { color:var(--text); }
 .slot .icon { font-size:1.3rem; margin-right:6px; }
-.slot.gold-slot { border-color: var(--gold); background: rgba(226,180,92,0.12); color: var(--text); font-weight: 850; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.68); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
 .modal.show { display:flex; }
 .modal-card { width:min(560px, 100%); border:2px solid var(--gold); border-radius:20px; background:linear-gradient(160deg,#302a24,#1f1b18); padding:20px; box-shadow:0 24px 80px rgba(0,0,0,0.5); }
@@ -99,6 +103,14 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .modal-actions { display:grid; gap:10px; margin-top:14px; }
 .shop-offer { border:1px solid var(--border); border-radius:14px; padding:10px; background:rgba(255,255,255,0.04); }
 .shop-offer button { width:100%; margin-top:8px; }
+.boss-track { display:flex; gap:5px; align-items:center; margin-top:4px; }
+.boss-dot { width:10px; height:10px; border-radius:999px; border:1px solid var(--border); background:#1f1b18; }
+.boss-dot.done { background:var(--gold); border-color:var(--gold); }
+.boss-dot.boss { background:var(--red); border-color:var(--red); }
+.hp-hit { animation: hpFlash 520ms ease-out; }
+.hp-shake { animation: hpShake 520ms ease-out; }
+@keyframes hpFlash { 0% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } 25% { box-shadow:0 0 0 5px rgba(217,107,95,0.36); transform:scale(1.035); } 100% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } }
+@keyframes hpShake { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-5px); } 40% { transform:translateX(5px); } 60% { transform:translateX(-3px); } 80% { transform:translateX(3px); } }
 .deck-list { display: grid; gap: 10px; background: rgba(0,0,0,0.14); border-radius: 12px; padding: 10px; }
 .deck-group h3 { margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .deck-counts { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -167,15 +179,19 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
   </div>
 
   <div class="info-grid">
-    <section class="panel">
-      <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
+    <section class="panel info-main">
       <h2>Equipment</h2>
       <div class="equipment" id="equipment"></div>
       <h2>Deck Contents</h2>
       <div class="deck-list" id="deckList"></div>
     </section>
 
-    <aside class="panel">
+    <section class="panel info-side">
+      <h2>Latest Reward</h2>
+      <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
+    </section>
+
+    <aside class="panel rules-row">
       <details class="rules-box">
         <summary>Rules</summary>
       <ul class="rules">
@@ -204,7 +220,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.10-stable-actions';
+const buildVersion = 'v4.11-feedback-layout';
 const startHandSize = 5;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
@@ -252,6 +268,8 @@ function start() {
     gold: 0,
     pendingReward: null,
     shopOffers: [],
+    playerHit: false,
+    monsterHit: false,
     equipment: {
       weapon: { slot:'weapon', icon:'🗡️', name:'Training Sword', mode:null, bonus:0, value:0 },
       armor: { slot:'armor', icon:'🛡️', name:'Cloth Armor', reduction:0, value:0 },
@@ -343,6 +361,7 @@ function enemyAttack(reason='') {
   const blocked = state.equipment.armor?.reduction || 0;
   const damage = Math.max(0, state.enemy.damage - blocked);
   state.hp -= damage;
+  if (damage > 0) state.playerHit = true;
   log(`${state.enemy.name} hits you for ${damage} HP${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
   if (state.hp <= 0) {
     state.hp = 0;
@@ -363,8 +382,9 @@ function itemDescription(item) {
   if (item.reduction) bits.push(`Block ${item.reduction}`);
   if (item.damageBonus) bits.push(`All attacks +${item.damageBonus}`);
   if (item.hpBonus) bits.push(`Max HP +${item.hpBonus}`);
-  return `${item.icon} ${item.name}${bits.length ? ` — ${bits.join(', ')}` : ' — no bonus'}`;
+  return `${item.name}${bits.length ? ` — ${bits.join(', ')}` : ' — no bonus'}`;
 }
+function itemModalDescription(item) { return `${item.icon || ''} ${itemDescription(item)}`.trim(); }
 
 function makeRewardItem(source='monster') {
   const roll = sample(['weapon','armor','itemDamage','itemHp']);
@@ -388,7 +408,7 @@ function applyEquipmentItem(item) {
     state.maxHp += delta;
     state.hp = Math.max(1, Math.min(state.maxHp, state.hp + Math.max(0, delta)));
   }
-  setReward(`Equipped ${itemDescription(item)}.`);
+  setReward(`Equipped ${itemModalDescription(item)}.`);
 }
 
 function addGold(amount, reason) {
@@ -399,7 +419,7 @@ function addGold(amount, reason) {
 function openRewardChoice(item) {
   state.pendingReward = item;
   const sellValue = item.value || 5;
-  showModal(`<h2>Found Gear</h2><p>${itemDescription(item)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button></div>`);
+  showModal(`<h2>Found Gear</h2><p>${itemModalDescription(item)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button></div>`);
 }
 
 function equipPendingReward() {
@@ -429,7 +449,7 @@ function makeShopOffers() {
 function openShop() {
   state.shopOffers = makeShopOffers();
   const offers = state.shopOffers.map((offer,i)=>{
-    const desc = offer.kind === 'gear' ? itemDescription(offer.item) : `${offer.label} — ${offer.text}`;
+    const desc = offer.kind === 'gear' ? itemModalDescription(offer.item) : `${offer.label} — ${offer.text}`;
     return `<div class="shop-offer"><strong>${desc}</strong><br><small>${offer.cost} gold</small><button ${state.gold < offer.cost ? 'disabled' : ''} onclick="buyShopOffer(${i})">Buy</button></div>`;
   }).join('');
   showModal(`<h2>🛒 Roadside Supply Store</h2><p>The boss drops a purse and a suspiciously well-placed shop appears. Gold: <strong>${state.gold}</strong></p><div class="modal-actions">${offers}<button onclick="leaveShop()">Leave shop</button></div>`);
@@ -466,6 +486,7 @@ function attack() {
 
   const previousHp = state.enemy.hp;
   state.enemy.hp = Math.max(0, state.enemy.hp - best.total);
+  if (best.total > 0) state.monsterHit = true;
 
   if (state.enemy.hp <= 0) {
     log(`Success: ${modeLabel[best.mode]} deals ${best.total} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}, drew ${drawn}.`);
@@ -524,7 +545,9 @@ function discardSelected() {
 function renderEnemy() {
   const blocked = state.equipment.armor?.reduction || 0;
   const damage = Math.max(0, state.enemy.damage - blocked);
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.boss ? 'Boss: guaranteed reward on defeat.' : 'Regular enemy: sometimes drops a reward.'}</div>`;
+  const progress = ((state.defeated % 5) + 1);
+  const dots = [1,2,3,4,5].map(i=>`<span class="boss-dot ${i < progress ? 'done' : ''} ${i === 5 ? 'boss' : ''}"></span>`).join('');
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
@@ -549,7 +572,7 @@ function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''
 function countCards(cards, keyFn){ return cards.reduce((acc,c)=>{ const k=keyFn(c); acc[k]=(acc[k]||0)+1; return acc; },{}); }
 function pills(counts, order){ return order.map(k=>`<span class="deck-pill">${k}: <strong>${counts[k]||0}</strong></span>`).join(''); }
 function renderEquipment(){
-  document.getElementById('equipment').innerHTML = `<div class="slot"><span class="icon">🗡️</span><strong>Weapon:</strong> ${itemDescription(state.equipment.weapon)}</div><div class="slot"><span class="icon">🛡️</span><strong>Armor:</strong> ${itemDescription(state.equipment.armor)}</div><div class="slot"><span class="icon">🎒</span><strong>Item:</strong> ${itemDescription(state.equipment.item)}</div><div class="slot gold-slot"><span class="icon">🪙</span><strong>Gold:</strong> ${state.gold}</div>`;
+  document.getElementById('equipment').innerHTML = `<div class="slot"><span class="icon">🗡️</span><strong>Weapon:</strong> ${itemDescription(state.equipment.weapon)}</div><div class="slot"><span class="icon">🛡️</span><strong>Armor:</strong> ${itemDescription(state.equipment.armor)}</div><div class="slot"><span class="icon">🎒</span><strong>Item:</strong> ${itemDescription(state.equipment.item)}</div><div class="slot"><span class="icon">🪙</span><strong>Gold:</strong> ${state.gold}</div>`;
   document.getElementById('rewardBanner').textContent = state.lastReward;
 }
 function renderDeckList(){
@@ -557,6 +580,13 @@ function renderDeckList(){
   const colorCounts=countCards(all,c=>c.color);
   const numberCounts=countCards(all,c=>c.n);
   document.getElementById('deckList').innerHTML=`<div class="deck-group"><h3>Colours</h3><div class="deck-counts">${pills(colorCounts,colors)}</div></div><div class="deck-group"><h3>Numbers</h3><div class="deck-counts">${pills(numberCounts,[1,2,3,4,5,6,7,8])}</div></div>`;
+}
+function pulseElement(id, cls) {
+  const el = document.getElementById(id);
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls), 560);
 }
 function render(){
   document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`;
@@ -570,6 +600,8 @@ function render(){
   document.getElementById('discardCount').textContent=state.discard.length;
   document.getElementById('goldCount').textContent=state.gold;
   renderEnemy(); renderHand(); renderPreview(); renderLog(); renderEquipment(); renderDeckList();
+  if (state.playerHit) { pulseElement('playerHp', 'hp-hit'); state.playerHit = false; }
+  if (state.monsterHit) { pulseElement('monsterHp', 'hp-shake'); state.monsterHit = false; }
   const attackBtn = document.getElementById('attackBtn');
   const best = bestAttack(selectedCards());
   attackBtn.disabled = state.gameOver;
