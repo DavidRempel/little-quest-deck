@@ -107,10 +107,13 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .boss-dot { width:10px; height:10px; border-radius:999px; border:1px solid var(--border); background:#1f1b18; }
 .boss-dot.done { background:var(--gold); border-color:var(--gold); }
 .boss-dot.boss { background:var(--red); border-color:var(--red); }
-.hp-hit { animation: hpFlash 520ms ease-out; }
-.hp-shake { animation: hpShake 520ms ease-out; }
-@keyframes hpFlash { 0% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } 25% { box-shadow:0 0 0 5px rgba(217,107,95,0.36); transform:scale(1.035); } 100% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } }
-@keyframes hpShake { 0%,100% { transform:translateX(0); } 20% { transform:translateX(-5px); } 40% { transform:translateX(5px); } 60% { transform:translateX(-3px); } 80% { transform:translateX(3px); } }
+.hp-hit { animation: hpFlash 900ms ease-out; }
+.hp-shake { animation: hpShake 900ms ease-out; }
+@keyframes hpFlash { 0% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } 20% { box-shadow:0 0 0 8px rgba(217,107,95,0.50); transform:scale(1.06); background:rgba(217,107,95,0.24); } 100% { box-shadow:0 0 0 0 rgba(217,107,95,0); transform:scale(1); } }
+@keyframes hpShake { 0%,100% { transform:translateX(0); } 15% { transform:translateX(-9px); } 30% { transform:translateX(9px); } 45% { transform:translateX(-7px); } 60% { transform:translateX(7px); } 75% { transform:translateX(-3px); } }
+.final-track { margin-top:8px; }
+.final-bar { height:10px; border:1px solid var(--border); border-radius:999px; background:#1f1b18; overflow:hidden; margin-top:5px; }
+.final-fill { height:100%; background:linear-gradient(90deg, var(--gold), var(--red)); }
 .deck-list { display: grid; gap: 10px; background: rgba(0,0,0,0.14); border-radius: 12px; padding: 10px; }
 .deck-group h3 { margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .deck-counts { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -196,13 +199,13 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
         <summary>Rules</summary>
       <ul class="rules">
         <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Two Pair, Straight, Flush, or Straight Flush. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
-        <li>Starting hand size is 5. Future buffs can raise that hand size.</li>
+        <li>Starting hand size is 5. Hand size can rise to a max of 7.</li>
         <li><strong>Score math:</strong> selected card count × combo-size multiplier. Weakness doubles the result. Straight Flush gets an extra ×2. Weapons add bonus damage to their attack type.</li>
         <li><strong>Multipliers:</strong> 2 cards ×2, 3 cards ×4, 4 cards ×8, 5 cards ×16.</li>
         <li><strong>Valid combos:</strong> Match = 2+ same number; Two Pair = exactly two pairs; Straight = 3+ consecutive numbers; Flush = 2+ same colour; Straight Flush = 3+ consecutive cards of one colour.</li>
         <li>Straight Flush is powerful enough already, so enemies do not have Straight Flush as a weakness.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
-        <li>Every 5th enemy is a boss. Regular enemies drop gold and sometimes gear. Bosses drop extra gold and open the Roadside Supply Store.</li>
+        <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the megaboss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
@@ -220,14 +223,17 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.11-feedback-layout';
+const buildVersion = 'v4.12-megaboss-run';
 const startHandSize = 5;
+const maxHandSize = 7;
+const finalEncounter = 16;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
 const weaknessModes = ['match', 'twoPair', 'straight', 'flush'];
 const modeLabel = { match:'Match', twoPair:'Two Pair', straight:'Straight', flush:'Flush', straightFlush:'Straight Flush' };
 const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
+const megaBossName = 'The Crown-Eating Dragon';
 let state;
 
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
@@ -239,16 +245,18 @@ function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
 
 function newEnemy() {
   const level = state.defeated + 1;
-  const boss = level % 5 === 0;
+  const mega = !state.finalDefeated && level === finalEncounter;
+  const boss = mega || (level < finalEncounter && level % 5 === 0) || (state.finalDefeated && level % 5 === 0);
   const weakness = sample(weaknessModes);
-  const hp = boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3);
+  const hp = mega ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3);
   return {
-    name: boss ? sample(bossNames) : sample(enemyNames),
+    name: mega ? megaBossName : boss ? sample(bossNames) : sample(enemyNames),
     boss,
+    mega,
     weakness,
     hp,
     maxHp: hp,
-    damage: boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5)
+    damage: mega ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5)
   };
 }
 
@@ -260,6 +268,7 @@ function start() {
     hp: 16,
     maxHp: 16,
     defeated: 0,
+    finalDefeated: false,
     deck: makeDeck(),
     discard: [],
     hand: [],
@@ -281,9 +290,7 @@ function start() {
     log: [],
     gameOver: false
   };
-  state.enemy = newEnemy();
-  for (let i=0; i<startHandSize; i++) drawOne(false);
-  sortHand();
+  advanceEnemy();
   log('Back to basics: one enemy, one hand, one decision loop.');
   render();
 }
@@ -301,6 +308,15 @@ function drawOne(announce=true) {
   return false;
 }
 
+function effectiveHandSize() { return state.enemy?.mega ? Math.max(1, state.handSize - 1) : state.handSize; }
+function applyHandLimit() {
+  const limit = effectiveHandSize();
+  let removed = 0;
+  while (state.hand.length > limit) { state.discard.push(state.hand.pop()); removed++; }
+  if (removed) { state.selected = []; log(`${state.enemy.name}'s curse shrinks your hand by ${removed}.`); }
+}
+function fillHand() { while (state.hand.length < effectiveHandSize()) if (!drawOne()) break; sortHand(); }
+function advanceEnemy() { state.enemy = newEnemy(); applyHandLimit(); fillHand(); }
 function sortHand() {
   if (!state) return;
   if (state.sortMode === 'color') state.hand.sort((a,b)=>colors.indexOf(a.color)-colors.indexOf(b.color) || a.n-b.n);
@@ -443,7 +459,7 @@ function makeShopOffers() {
   return [
     { kind:'gear', cost:10, item:makeRewardItem('shop') },
     { kind:'heal', cost:6, label:'Soup and bandages', text:'Heal 6 HP' },
-    { kind:'hand', cost:14, label:'Bigger Backpack', text:'+1 hand size' }
+    { kind:'hand', cost:14, label:'Bigger Backpack', text:`+1 hand size, max ${maxHandSize}` }
   ];
 }
 function openShop() {
@@ -460,11 +476,12 @@ function buyShopOffer(i) {
   state.gold -= offer.cost;
   if (offer.kind === 'gear') applyEquipmentItem(offer.item);
   if (offer.kind === 'heal') { const before = state.hp; state.hp = Math.min(state.maxHp, state.hp + 6); setReward(`Bought soup and bandages. Healed ${state.hp - before} HP.`); }
-  if (offer.kind === 'hand') { state.handSize++; while (state.hand.length < state.handSize) if (!drawOne()) break; sortHand(); setReward(`Bought Bigger Backpack. Hand size is now ${state.handSize}.`); }
+  if (offer.kind === 'hand') { if (state.handSize >= maxHandSize) { state.gold += offer.cost; setReward(`Hand size is already maxed at ${maxHandSize}. Refunded ${offer.cost} gold.`); } else { state.handSize++; fillHand(); setReward(`Bought Bigger Backpack. Hand size is now ${state.handSize}/${maxHandSize}.`); } }
   openShop();
   render();
 }
 function leaveShop() { hideModal(); render(); }
+function showVictoryModal() { showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the megaboss on encounter ${finalEncounter}. Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`); }
 function showModal(html) { const m=document.getElementById('modal'); document.getElementById('modalCard').innerHTML=html; m.classList.add('show'); }
 function hideModal() { document.getElementById('modal').classList.remove('show'); }
 
@@ -480,9 +497,9 @@ function attack() {
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
-  let drawn = 0;
-  while (state.hand.length < state.handSize) if (drawOne()) drawn++; else break;
-  sortHand();
+  const beforeDraw = state.hand.length;
+  fillHand();
+  let drawn = state.hand.length - beforeDraw;
 
   const previousHp = state.enemy.hp;
   state.enemy.hp = Math.max(0, state.enemy.hp - best.total);
@@ -492,15 +509,22 @@ function attack() {
     log(`Success: ${modeLabel[best.mode]} deals ${best.total} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}, drew ${drawn}.`);
     const defeatedBoss = state.enemy.boss;
     state.defeated++;
-    if (defeatedBoss) {
+    if (state.defeated === finalEncounter && defeatedBoss) {
+      state.finalDefeated = true;
+      state.gold += 40;
+      setReward('Megaboss defeated: you win the Forest Crown and 40 gold.');
+      advanceEnemy();
+      log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
+      showVictoryModal();
+    } else if (defeatedBoss) {
       addGold(12 + Math.floor(state.defeated / 5) * 3, 'Boss purse');
-      state.enemy = newEnemy();
+      advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
       openShop();
     } else {
       addGold(2 + Math.floor(Math.random() * 3), 'Monster loot');
       if (Math.random() < 0.30) openRewardChoice(makeRewardItem('monster'));
-      state.enemy = newEnemy();
+      advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
   } else {
@@ -516,7 +540,7 @@ function runAway() {
   if (Math.random() < 0.5) {
     const oldName = state.enemy.name;
     state.defeated++;
-    state.enemy = newEnemy();
+    advanceEnemy();
     state.selected = [];
     log(`You run from ${oldName}. A new enemy appears: ${state.enemy.name}.`);
   } else {
@@ -545,9 +569,11 @@ function discardSelected() {
 function renderEnemy() {
   const blocked = state.equipment.armor?.reduction || 0;
   const damage = Math.max(0, state.enemy.damage - blocked);
-  const progress = ((state.defeated % 5) + 1);
-  const dots = [1,2,3,4,5].map(i=>`<span class="boss-dot ${i < progress ? 'done' : ''} ${i === 5 ? 'boss' : ''}"></span>`).join('');
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div>`;
+  const bossProgress = ((state.defeated % 5) + 1);
+  const dots = [1,2,3,4,5].map(i=>`<span class="boss-dot ${i < bossProgress ? 'done' : ''} ${i === 5 ? 'boss' : ''}"></span>`).join('');
+  const finalProgress = state.finalDefeated ? 100 : Math.min(100, Math.round(((state.defeated + 1) / finalEncounter) * 100));
+  const toFinal = state.finalDefeated ? 'Forest Crown won — endless mode.' : `${Math.max(0, finalEncounter - state.defeated)} encounter${finalEncounter - state.defeated === 1 ? '' : 's'} to megaboss.`;
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.mega ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.mega ? 'Megaboss: -1 effective hand size. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
@@ -586,7 +612,7 @@ function pulseElement(id, cls) {
   el.classList.remove(cls);
   void el.offsetWidth;
   el.classList.add(cls);
-  setTimeout(()=>el.classList.remove(cls), 560);
+  setTimeout(()=>el.classList.remove(cls), 950);
 }
 function render(){
   document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`;
@@ -595,7 +621,7 @@ function render(){
   document.getElementById('playerHp').classList.toggle('low', state.hp <= Math.ceil(state.maxHp / 3));
   document.getElementById('monsterHp').classList.toggle('low', state.enemy.hp <= Math.ceil(state.enemy.maxHp / 3));
   document.getElementById('encounter').textContent=`${state.defeated + 1}`;
-  document.getElementById('handCount').textContent=`${state.hand.length}/${state.handSize}`;
+  document.getElementById('handCount').textContent=`${state.hand.length}/${effectiveHandSize()}${state.enemy.mega ? ` (${state.handSize} base)` : ''}`;
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
   document.getElementById('goldCount').textContent=state.gold;
