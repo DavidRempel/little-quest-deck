@@ -119,6 +119,9 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
       <h2>Rules</h2>
       <ul class="rules">
         <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Run, Colour, or Set.</li>
+        <li><strong>Score math:</strong> combo base + card count bonus + card value bonus. Card value bonus = ceil(card number / 3) for each played card.</li>
+        <li><strong>Combo values:</strong> Match = 5 + 4/card; Run = 7 + 5/card; Colour = 4 + 3/card; Set = 9 + 6/card. Then add card value bonus.</li>
+        <li><strong>Valid combos:</strong> Match = 2+ same number; Run = 3+ consecutive numbers; Colour = 2+ same colour; Set = 3+ numbers all same/all different and colours all same/all different.</li>
         <li><strong>Draw One</strong> adds one adventure card, up to a max hand size of 9, then the enemy attacks.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li>Enemy attacks deal HP damage only in this build.</li>
