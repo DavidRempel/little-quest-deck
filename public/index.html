@@ -39,10 +39,12 @@ button:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.attack-ready { background: #2f5f35; border-color: var(--green); }
 button.attack-short { background: #67302b; border-color: var(--red); }
-.player-hp { margin: 0 0 16px; border: 2px solid var(--gold); border-radius: 18px; padding: 14px 18px; background: linear-gradient(135deg, rgba(226,180,92,0.22), rgba(0,0,0,0.12)); display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
-.player-hp .label { color: var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:0.12em; font-size:0.8rem; }
-.player-hp .value { color: var(--text); font-size: clamp(2rem, 7vw, 3.8rem); font-weight: 950; line-height: 1; }
-.player-hp.low { border-color: var(--red); background: linear-gradient(135deg, rgba(217,107,95,0.30), rgba(0,0,0,0.16)); }
+.hp-board { margin: 0 0 16px; display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+.hp-card { border: 2px solid var(--gold); border-radius: 18px; padding: 14px 18px; background: linear-gradient(135deg, rgba(226,180,92,0.22), rgba(0,0,0,0.12)); }
+.hp-card.monster { border-color: var(--red); background: linear-gradient(135deg, rgba(217,107,95,0.22), rgba(0,0,0,0.12)); }
+.hp-card .label { color: var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:0.12em; font-size:0.8rem; }
+.hp-card .value { color: var(--text); font-size: clamp(2rem, 7vw, 3.8rem); font-weight: 950; line-height: 1; margin-top:4px; }
+.hp-card.low { border-color: var(--red); background: linear-gradient(135deg, rgba(217,107,95,0.30), rgba(0,0,0,0.16)); }
 .app { max-width: 1120px; margin: 0 auto; padding: 24px; }
 .header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
@@ -77,6 +79,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .score-part b { display:block; color:var(--text); font-size:1.05rem; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
+.reward-banner { margin: 12px 0; border: 1px solid var(--gold); border-radius: 14px; padding: 10px 12px; background: rgba(226,180,92,0.14); color: var(--text); font-weight: 850; }
+.equipment { display:grid; gap:8px; margin-bottom:14px; }
+.slot { border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:rgba(0,0,0,0.14); color:var(--muted); }
+.slot strong { color:var(--text); }
 .deck-list { display: grid; gap: 10px; background: rgba(0,0,0,0.14); border-radius: 12px; padding: 10px; }
 .deck-group h3 { margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .deck-counts { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -116,7 +122,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 
   <div class="grid">
     <main class="panel">
-      <div class="player-hp" id="playerHp"><span class="label">Player HP</span><span class="value" id="playerHpValue"></span></div>
+      <div class="hp-board">
+        <div class="hp-card" id="playerHp"><div class="label">Your HP</div><div class="value" id="playerHpValue"></div></div>
+        <div class="hp-card monster" id="monsterHp"><div class="label">Monster HP</div><div class="value" id="monsterHpValue"></div></div>
+      </div>
       <h2>Enemy</h2>
       <div class="enemy" id="enemy"></div>
       <h2 style="margin-top:18px;">Adventure Hand</h2>
@@ -147,14 +156,17 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
         <li><strong>Valid combos:</strong> Match = 2+ same number; Two Pair = exactly two pairs; Straight = 3+ consecutive numbers; Flush = 2+ same colour; Straight Flush = 3+ consecutive cards of one colour.</li>
         <li>Straight Flush is powerful enough already, so enemies do not have Straight Flush as a weakness.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
-        <li>Every 5th enemy is a boss. Defeating a boss gives a random reward: +1 hand size, heal HP, or a weapon bonus for one attack type.</li>
+        <li>Every 5th enemy is a boss. Defeating a boss always gives a visible reward. Some regular enemies also drop rewards.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
-        <li>Enemy attacks deal HP damage only in this build.</li>
+        <li>Equipment slots: Weapon adds damage to an attack type, Armor reduces incoming damage, and Item gives a utility bonus such as max HP or all-attack damage.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>
       </details>
+      <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
+      <h2>Equipment</h2>
+      <div class="equipment" id="equipment"></div>
       <h2>Deck Contents</h2>
       <div class="deck-list" id="deckList"></div>
       <details class="rules-box log-box">
@@ -166,7 +178,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 </div>
 
 <script>
-const buildVersion = 'v4.6-run-two-pair';
+const buildVersion = 'v4.7-equipment-rewards';
 const startHandSize = 5;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
@@ -210,7 +222,9 @@ function start() {
     discard: [],
     hand: [],
     handSize: startHandSize,
-    weapons: {},
+    sortMode: 'number',
+    equipment: { weapon: null, armor: null, item: null },
+    lastReward: 'No rewards yet.',
     selected: [],
     enemy: null,
     log: [],
@@ -218,6 +232,7 @@ function start() {
   };
   state.enemy = newEnemy();
   for (let i=0; i<startHandSize; i++) drawOne(false);
+  sortHand();
   log('Back to basics: one enemy, one hand, one decision loop.');
   render();
 }
@@ -235,6 +250,12 @@ function drawOne(announce=true) {
   return false;
 }
 
+function sortHand() {
+  if (!state) return;
+  if (state.sortMode === 'color') state.hand.sort((a,b)=>colors.indexOf(a.color)-colors.indexOf(b.color) || a.n-b.n);
+  else state.hand.sort((a,b)=>a.n-b.n || colors.indexOf(a.color)-colors.indexOf(b.color));
+}
+function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function isWholeMatch(cards) { return cards.length >= 2 && cards.every(c => c.n === cards[0].n); }
 function isTwoPair(cards) {
@@ -266,14 +287,16 @@ function attackScore(cards, mode) {
   const straightFlushMult = mode === 'straightFlush' ? 2 : 1;
   const twoPairMult = mode === 'twoPair' ? 0.75 : 1;
   const weaknessMult = state.enemy?.weakness === mode ? 2 : 1;
-  const weaponBonus = state.weapons?.[mode] || 0;
+  const weaponBonus = state.equipment.weapon?.mode === mode ? state.equipment.weapon.bonus : 0;
+  const itemBonus = state.equipment.item?.damageBonus || 0;
   const baseTotal = valid ? Math.floor(cards.length * comboMult * straightFlushMult * twoPairMult * weaknessMult) : 0;
-  const total = valid ? baseTotal + weaponBonus : 0;
+  const total = valid ? baseTotal + weaponBonus + itemBonus : 0;
   const pieces = [`${cards.length} cards`, `×${comboMult}`];
   if (straightFlushMult > 1) pieces.push('×2 straight flush');
   if (twoPairMult < 1) pieces.push('×0.75 two pair');
   if (weaknessMult > 1) pieces.push('×2 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
+  if (itemBonus) pieces.push(`+${itemBonus} item`);
   const formula = valid ? `${pieces.join(' ')} = ${total}` : '';
   return { mode, valid, total, multiplier: comboMult * straightFlushMult * twoPairMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
 }
@@ -284,8 +307,10 @@ function bestAttack(cards) {
 
 function enemyAttack(reason='') {
   if (state.gameOver) return;
-  state.hp -= state.enemy.damage;
-  log(`${state.enemy.name} hits you for ${state.enemy.damage} HP${reason ? ` after ${reason}` : ''}.`);
+  const blocked = state.equipment.armor?.reduction || 0;
+  const damage = Math.max(0, state.enemy.damage - blocked);
+  state.hp -= damage;
+  log(`${state.enemy.name} hits you for ${damage} HP${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
   if (state.hp <= 0) {
     state.hp = 0;
     state.gameOver = true;
@@ -293,25 +318,53 @@ function enemyAttack(reason='') {
   }
 }
 
-function bossReward() {
-  const rewards = ['hand', 'heal', 'weapon'];
+function setReward(text) {
+  state.lastReward = text;
+  log(`<span class="game-over">${text}</span>`);
+}
+
+function grantReward(source='Reward') {
+  const rewards = ['hand', 'heal', 'weapon', 'armor', 'itemHp', 'itemDamage'];
   const reward = sample(rewards);
   if (reward === 'hand') {
     state.handSize++;
     while (state.hand.length < state.handSize) if (!drawOne()) break;
-    log(`<span class="game-over">Boss reward: +1 hand size. Hand size is now ${state.handSize}.</span>`);
+    sortHand();
+    setReward(`${source}: +1 hand size. Hand size is now ${state.handSize}.`);
     return;
   }
   if (reward === 'heal') {
+    const beforeMax = state.maxHp;
     const before = state.hp;
-    state.hp = Math.min(state.maxHp, state.hp + 5);
-    log(`<span class="game-over">Boss reward: healed ${state.hp - before} HP. HP is now ${state.hp}/${state.maxHp}.</span>`);
+    state.maxHp += 2;
+    state.hp = Math.min(state.maxHp, state.hp + 6);
+    setReward(`${source}: vitality apple. Max HP ${beforeMax} → ${state.maxHp}; healed ${state.hp - before} HP.`);
     return;
   }
-  const mode = sample(modes);
-  state.weapons[mode] = (state.weapons[mode] || 0) + 4;
-  log(`<span class="game-over">Boss reward: ${modeLabel[mode]} weapon. ${modeLabel[mode]} attacks get +${state.weapons[mode]} damage.</span>`);
+  if (reward === 'weapon') {
+    const mode = sample(modes);
+    const bonus = 4;
+    state.equipment.weapon = { mode, bonus };
+    setReward(`${source}: equipped weapon — ${modeLabel[mode]} attacks get +${bonus} damage.`);
+    return;
+  }
+  if (reward === 'armor') {
+    const next = Math.min(3, (state.equipment.armor?.reduction || 0) + 1);
+    state.equipment.armor = { reduction: next };
+    setReward(`${source}: equipped armor — incoming damage reduced by ${next}.`);
+    return;
+  }
+  if (reward === 'itemHp') {
+    state.equipment.item = { name: 'Heart Charm', hpBonus: 4 };
+    state.maxHp += 4;
+    state.hp += 4;
+    setReward(`${source}: equipped Heart Charm — +4 max HP.`);
+    return;
+  }
+  state.equipment.item = { name: 'Sharpening Stone', damageBonus: 3 };
+  setReward(`${source}: equipped Sharpening Stone — all attacks get +3 damage.`);
 }
+
 
 function attack() {
   if (state.gameOver) return;
@@ -326,6 +379,7 @@ function attack() {
   state.selected = [];
   let drawn = 0;
   while (state.hand.length < state.handSize) if (drawOne()) drawn++; else break;
+  sortHand();
 
   const previousHp = state.enemy.hp;
   state.enemy.hp = Math.max(0, state.enemy.hp - best.total);
@@ -334,7 +388,8 @@ function attack() {
     log(`Success: ${modeLabel[best.mode]} deals ${best.total} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}, drew ${drawn}.`);
     const defeatedBoss = state.enemy.boss;
     state.defeated++;
-    if (defeatedBoss) bossReward();
+    if (defeatedBoss) grantReward('Boss reward');
+    else if (Math.random() < 0.25) grantReward('Monster reward');
     state.enemy = newEnemy();
     log(`A new enemy appears: ${state.enemy.name}.`);
   } else {
@@ -370,14 +425,16 @@ function discardSelected() {
   state.selected = [];
   let drawn = 0;
   for (let i = 0; i < count; i++) if (drawOne()) drawn++;
+  sortHand();
   log(`You discard ${count} card${count > 1 ? 's' : ''} and draw ${drawn}.`);
   enemyAttack('cycling cards');
   render();
 }
 
 function renderEnemy() {
-  const weaponLines = Object.entries(state.weapons).filter(([,v])=>v>0).map(([mode,bonus])=>`${modeLabel[mode]} +${bonus}`).join(', ');
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${state.enemy.damage} HP</strong>.</div><div class="line">${state.enemy.boss ? 'Boss: defeat it for a random reward.' : 'Regular enemy.'}</div>${weaponLines ? `<div class="line">Weapons: <strong>${weaponLines}</strong></div>` : ''}`;
+  const blocked = state.equipment.armor?.reduction || 0;
+  const damage = Math.max(0, state.enemy.damage - blocked);
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.boss ? 'Boss: guaranteed reward on defeat.' : 'Regular enemy: sometimes drops a reward.'}</div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
@@ -401,6 +458,13 @@ function renderPreview() {
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
 function countCards(cards, keyFn){ return cards.reduce((acc,c)=>{ const k=keyFn(c); acc[k]=(acc[k]||0)+1; return acc; },{}); }
 function pills(counts, order){ return order.map(k=>`<span class="deck-pill">${k}: <strong>${counts[k]||0}</strong></span>`).join(''); }
+function renderEquipment(){
+  const weapon = state.equipment.weapon ? `${modeLabel[state.equipment.weapon.mode]} +${state.equipment.weapon.bonus}` : 'empty';
+  const armor = state.equipment.armor ? `Block ${state.equipment.armor.reduction}` : 'empty';
+  const item = state.equipment.item ? `${state.equipment.item.name}${state.equipment.item.damageBonus ? ` (+${state.equipment.item.damageBonus} damage)` : ''}${state.equipment.item.hpBonus ? ` (+${state.equipment.item.hpBonus} max HP)` : ''}` : 'empty';
+  document.getElementById('equipment').innerHTML = `<div class="slot"><strong>Weapon:</strong> ${weapon}</div><div class="slot"><strong>Armor:</strong> ${armor}</div><div class="slot"><strong>Item:</strong> ${item}</div>`;
+  document.getElementById('rewardBanner').textContent = state.lastReward;
+}
 function renderDeckList(){
   const all=[...state.deck,...state.hand,...state.discard];
   const colorCounts=countCards(all,c=>c.color);
@@ -410,12 +474,14 @@ function renderDeckList(){
 function render(){
   document.getElementById('hp').textContent=`${state.hp}/${state.maxHp}`;
   document.getElementById('playerHpValue').textContent=`${state.hp}/${state.maxHp}`;
+  document.getElementById('monsterHpValue').textContent=`${state.enemy.hp}/${state.enemy.maxHp}`;
   document.getElementById('playerHp').classList.toggle('low', state.hp <= Math.ceil(state.maxHp / 3));
+  document.getElementById('monsterHp').classList.toggle('low', state.enemy.hp <= Math.ceil(state.enemy.maxHp / 3));
   document.getElementById('encounter').textContent=`${state.defeated + 1}`;
   document.getElementById('handCount').textContent=`${state.hand.length}/${state.handSize}`;
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
-  renderEnemy(); renderHand(); renderPreview(); renderLog(); renderDeckList();
+  renderEnemy(); renderHand(); renderPreview(); renderLog(); renderEquipment(); renderDeckList();
   const attackBtn = document.getElementById('attackBtn');
   const best = bestAttack(selectedCards());
   attackBtn.disabled = state.gameOver;
@@ -428,8 +494,8 @@ function render(){
 document.getElementById('attackBtn').onclick=attack;
 document.getElementById('discardBtn').onclick=discardSelected;
 document.getElementById('runBtn').onclick=runAway;
-document.getElementById('sortNumberBtn').onclick=()=>{ state.hand.sort((a,b)=>a.n-b.n || colors.indexOf(a.color)-colors.indexOf(b.color)); render(); };
-document.getElementById('sortColorBtn').onclick=()=>{ state.hand.sort((a,b)=>colors.indexOf(a.color)-colors.indexOf(b.color) || a.n-b.n); render(); };
+document.getElementById('sortNumberBtn').onclick=()=>setSortMode('number');
+document.getElementById('sortColorBtn').onclick=()=>setSortMode('color');
 document.getElementById('restartBtn').onclick=start;
 start();
 </script>
