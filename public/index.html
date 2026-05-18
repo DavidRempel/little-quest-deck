@@ -122,11 +122,11 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
     <aside class="panel">
       <h2>Rules</h2>
       <ul class="rules">
-        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Run, Colour, or Set. The Attack button turns green when the selected attack beats the enemy target, red when it is short.</li>
+        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Strike, Match, Run, Colour, or Set. The Attack button turns green when the selected attack beats the enemy target, red when it is short.</li>
         <li>Starting hand size is 5. Future buffs can raise that hand size.</li>
-        <li><strong>Score math:</strong> combo base + card count bonus + card value bonus. Card value bonus = ceil(card number / 3) for each played card.</li>
-        <li><strong>Combo values:</strong> Match = 5 + 4/card; Run = 7 + 5/card; Colour = 4 + 3/card; Set = 9 + 6/card. Then add card value bonus.</li>
-        <li><strong>Valid combos:</strong> Match = 2+ same number; Run = 3+ consecutive numbers; Colour = 2+ same colour; Set = 3+ numbers all same/all different and colours all same/all different.</li>
+        <li><strong>Score math:</strong> selected card count × combo-size multiplier. Card numbers do not add points right now.</li>
+        <li><strong>Multipliers:</strong> 1 card ×1, 2 cards ×2, 3 cards ×4, 4 cards ×8, 5 cards ×16.</li>
+        <li><strong>Valid combos:</strong> Strike = any 1 card; Match = 2+ same number; Run = 3+ consecutive numbers; Colour = 2+ same colour; Set = 3+ numbers all same/all different and colours all same/all different.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
         <li>Enemy attacks deal HP damage only in this build.</li>
@@ -141,11 +141,11 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 </div>
 
 <script>
-const buildVersion = 'v4.2-sort-and-math';
+const buildVersion = 'v4.3-simple-multiplier';
 const startHandSize = 5;
 const colors = ['red', 'green', 'blue', 'purple'];
-const modes = ['match', 'run', 'colour', 'set'];
-const modeLabel = { match:'Match', run:'Run', colour:'Colour', set:'Set' };
+const modes = ['strike', 'match', 'run', 'colour', 'set'];
+const modeLabel = { strike:'Strike', match:'Match', run:'Run', colour:'Colour', set:'Set' };
 const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 let state;
 
@@ -160,8 +160,8 @@ function newEnemy() {
   const level = state.defeated + 1;
   return {
     name: sample(enemyNames),
-    target: 12 + Math.floor(level * 2.2) + Math.floor(Math.random() * 4),
-    damage: 1 + Math.floor(level / 4)
+    target: 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3),
+    damage: 1 + Math.floor(level / 5)
   };
 }
 
@@ -216,21 +216,20 @@ function isSetCombo(cards) {
   return sameOrDifferent(cards.map(c=>c.n)) && sameOrDifferent(cards.map(c=>c.color));
 }
 function isValidMode(cards, mode) {
+  if (mode === 'strike') return cards.length === 1;
   if (mode === 'match') return isWholeMatch(cards);
   if (mode === 'run') return isWholeRun(cards);
   if (mode === 'colour') return isWholeColour(cards);
   if (mode === 'set') return isSetCombo(cards);
   return false;
 }
+function comboMultiplier(count) { return Math.pow(2, Math.max(0, count - 1)); }
 function attackScore(cards, mode) {
   const valid = isValidMode(cards, mode);
-  const valueParts = cards.map(c => Math.ceil(c.n/3));
-  const valueBonus = valueParts.reduce((a,n)=>a+n,0);
-  const comboBase = { match: 5, run: 7, colour: 4, set: 9 }[mode] || 0;
-  const sizeBonus = { match: 4, run: 5, colour: 3, set: 6 }[mode] || 0;
-  const total = valid ? comboBase + cards.length * sizeBonus + valueBonus : 0;
-  const formula = valid ? `${comboBase} + ${cards.length}×${sizeBonus} + (${valueParts.join('+')}) = ${total}` : '';
-  return { mode, valid, total, valueBonus, comboScore: valid ? comboBase + cards.length * sizeBonus : 0, formula, margin: valid ? total - state.enemy.target : null };
+  const multiplier = comboMultiplier(cards.length);
+  const total = valid ? cards.length * multiplier : 0;
+  const formula = valid ? `${cards.length} cards × ${multiplier} = ${total}` : '';
+  return { mode, valid, total, multiplier, formula, margin: valid ? total - state.enemy.target : null };
 }
 function bestAttack(cards) {
   const scores = modes.map(mode => attackScore(cards, mode));
