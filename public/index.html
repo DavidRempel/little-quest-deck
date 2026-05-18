@@ -86,7 +86,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   <div class="header">
     <div>
       <h1>Little Quest Deck</h1>
-      <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Each turn, choose one of three actions: Attack with selected cards, Draw One to grow your hand, or Discard X → Draw X to cycle cards without increasing hand size. Draw and cycle both give the enemy a chance to hurt you or knock a card out of your hand. <strong id="buildLabel"></strong></div>
+      <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Each turn, choose one of three actions: Attack with selected cards, Draw One to grow your hand, or Discard X → Draw X to cycle cards without increasing hand size. Draw and cycle both let the enemy hit you for HP. <strong id="buildLabel"></strong></div>
     </div>
     <div class="stats">
       <div class="stat">HP <strong id="hp"></strong></div>
@@ -121,7 +121,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
         <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Run, Colour, or Set.</li>
         <li><strong>Draw One</strong> adds one adventure card, up to a max hand size of 9, then the enemy attacks.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
-        <li>Enemy attacks either deal HP damage or make you discard one adventure card from hand. Lost cards are not replaced.</li>
+        <li>Enemy attacks deal HP damage only in this build.</li>
         <li>No treasures, rewards, relics, traits, enemy modifiers, or attack-type buttons in this build.</li>
       </ul>
       <h2>Deck Contents</h2>
@@ -229,16 +229,8 @@ function bestAttack(cards) {
 
 function enemyAttack(reason='') {
   if (state.gameOver) return;
-  if (!state.hand.length || Math.random() < 0.58) {
-    state.hp -= state.enemy.damage;
-    log(`${state.enemy.name} hits you for ${state.enemy.damage} HP${reason ? ` after ${reason}` : ''}.`);
-  } else {
-    const index = Math.floor(Math.random() * state.hand.length);
-    const lost = state.hand.splice(index, 1)[0];
-    state.discard.push(lost);
-    state.selected = state.selected.filter(id => id !== lost.id);
-    log(`${state.enemy.name} disrupts you${reason ? ` after ${reason}` : ''}: discard ${lost.color} ${lost.n}. It is not replaced.`);
-  }
+  state.hp -= state.enemy.damage;
+  log(`${state.enemy.name} hits you for ${state.enemy.damage} HP${reason ? ` after ${reason}` : ''}.`);
   if (state.hp <= 0) {
     state.hp = 0;
     state.gameOver = true;
@@ -253,17 +245,20 @@ function attack() {
   const best = bestAttack(cards);
   if (!best) { log('No valid combo in those cards. Try Match, Run, Colour, or Set patterns.'); render(); return; }
 
+  const playedCount = cards.length;
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
+  let drawn = 0;
+  for (let i = 0; i < playedCount; i++) if (drawOne()) drawn++;
 
   if (best.total >= state.enemy.target) {
-    log(`Success: ${modeLabel[best.mode]} ${best.total} beats ${state.enemy.name}'s ${state.enemy.target}.`);
+    log(`Success: ${modeLabel[best.mode]} ${best.total} beats ${state.enemy.name}'s ${state.enemy.target}. Played ${playedCount}, drew ${drawn}.`);
     state.defeated++;
     state.enemy = newEnemy();
     log(`A new enemy appears: ${state.enemy.name}.`);
   } else {
-    log(`Miss: ${modeLabel[best.mode]} ${best.total} is short of ${state.enemy.name}'s ${state.enemy.target} by ${Math.abs(best.margin)}.`);
+    log(`Miss: ${modeLabel[best.mode]} ${best.total} is short of ${state.enemy.name}'s ${state.enemy.target} by ${Math.abs(best.margin)}. Played ${playedCount}, drew ${drawn}.`);
     enemyAttack('a failed attack');
   }
   render();
@@ -295,7 +290,7 @@ function discardSelected() {
 }
 
 function renderEnemy() {
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.name}</div><div class="line">Target: <strong>${state.enemy.target}</strong></div><div class="line">Attack: <strong>${state.enemy.damage} HP</strong> or discard one card from your hand.</div><div class="line">No traits. No rewards. Just the loop.</div>`;
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.name}</div><div class="line">Target: <strong>${state.enemy.target}</strong></div><div class="line">Attack: <strong>${state.enemy.damage} HP</strong>.</div><div class="line">No traits. No rewards. Just the loop.</div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
