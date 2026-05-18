@@ -80,7 +80,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .score-preview strong { color: var(--text); }
 .score-big { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
 .score-number { font-size:2rem; font-weight:950; color:var(--gold); line-height:1; }
-.score-formula { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px; margin-top:8px; }
+.score-formula { display:grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap:8px; margin-top:8px; }
 .score-part { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:8px; text-align:center; }
 .score-part b { display:block; color:var(--text); font-size:1.05rem; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
@@ -198,14 +198,14 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
       <details class="rules-box">
         <summary>Rules</summary>
       <ul class="rules">
-        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Two Pair, Straight, Flush, or Straight Flush. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
+        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Pair, Two Pair, Three of a Kind, Straight, Flush, Full House, Four of a Kind, or Straight Flush. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
         <li>Starting hand size is 5. Hand size can rise to a max of 7.</li>
-        <li><strong>Score math:</strong> selected card count × combo-size multiplier. Weakness doubles the result. Straight Flush gets an extra ×2. Weapons add bonus damage to their attack type.</li>
-        <li><strong>Multipliers:</strong> 2 cards ×2, 3 cards ×4, 4 cards ×8, 5 cards ×16.</li>
-        <li><strong>Valid combos:</strong> Match = 2+ same number; Two Pair = exactly two pairs; Straight = 3+ consecutive numbers; Flush = 2+ same colour; Straight Flush = 3+ consecutive cards of one colour.</li>
+        <li><strong>Score math:</strong> selected cards × base × poker-hand rarity multiplier. Weakness doubles the result. Weapons add bonus damage to their attack type.</li>
+        <li><strong>Rarity multipliers:</strong> Pair ×1.0, Two Pair ×1.25, Three Kind ×1.8, Straight ×1.6, Flush ×1.7, Full House ×2.6, Four Kind ×3.8, Straight Flush ×5.5.</li>
+        <li><strong>Valid combos:</strong> Pair, Two Pair, Three of a Kind, Straight, Flush, Full House, Four of a Kind, and Straight Flush. Straights/Flushes use 5 cards.</li>
         <li>Straight Flush is powerful enough already, so enemies do not have Straight Flush as a weakness.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
-        <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the megaboss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
+        <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
@@ -223,17 +223,18 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.12-megaboss-run';
+const buildVersion = 'v4.13-poker-final-boss';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
 const colors = ['red', 'green', 'blue', 'purple'];
-const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
-const weaknessModes = ['match', 'twoPair', 'straight', 'flush'];
-const modeLabel = { match:'Match', twoPair:'Two Pair', straight:'Straight', flush:'Flush', straightFlush:'Straight Flush' };
+const modes = ['pair', 'twoPair', 'threeKind', 'straight', 'flush', 'fullHouse', 'fourKind', 'straightFlush'];
+const weaknessModes = ['pair', 'twoPair', 'threeKind', 'straight', 'flush', 'fullHouse', 'fourKind'];
+const modeLabel = { pair:'Pair', twoPair:'Two Pair', threeKind:'Three of a Kind', straight:'Straight', flush:'Flush', fullHouse:'Full House', fourKind:'Four of a Kind', straightFlush:'Straight Flush' };
+const rarityMult = { pair:1.0, twoPair:1.25, threeKind:1.8, straight:1.6, flush:1.7, fullHouse:2.6, fourKind:3.8, straightFlush:5.5 };
 const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
-const megaBossName = 'The Crown-Eating Dragon';
+const finalBossName = 'The Crown-Eating Dragon';
 let state;
 
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
@@ -245,18 +246,18 @@ function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
 
 function newEnemy() {
   const level = state.defeated + 1;
-  const mega = !state.finalDefeated && level === finalEncounter;
-  const boss = mega || (level < finalEncounter && level % 5 === 0) || (state.finalDefeated && level % 5 === 0);
+  const finalBoss = !state.finalDefeated && level === finalEncounter;
+  const boss = finalBoss || (level < finalEncounter && level % 5 === 0) || (state.finalDefeated && level % 5 === 0);
   const weakness = sample(weaknessModes);
-  const hp = mega ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3);
+  const hp = finalBoss ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3);
   return {
-    name: mega ? megaBossName : boss ? sample(bossNames) : sample(enemyNames),
+    name: finalBoss ? finalBossName : boss ? sample(bossNames) : sample(enemyNames),
     boss,
-    mega,
+    finalBoss,
     weakness,
     hp,
     maxHp: hp,
-    damage: mega ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5)
+    damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5)
   };
 }
 
@@ -308,7 +309,7 @@ function drawOne(announce=true) {
   return false;
 }
 
-function effectiveHandSize() { return state.enemy?.mega ? Math.max(1, state.handSize - 1) : state.handSize; }
+function effectiveHandSize() { return state.enemy?.finalBoss ? Math.max(1, state.handSize - 1) : state.handSize; }
 function applyHandLimit() {
   const limit = effectiveHandSize();
   let removed = 0;
@@ -324,48 +325,50 @@ function sortHand() {
 }
 function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
-function isWholeMatch(cards) { return cards.length >= 2 && cards.every(c => c.n === cards[0].n); }
-function isTwoPair(cards) {
-  if (cards.length !== 4) return false;
-  const counts = countCards(cards, c => c.n);
-  const pairs = Object.values(counts).filter(v => v === 2).length;
-  return pairs === 2;
+function rankCounts(cards) { return Object.values(countCards(cards, c => c.n)).sort((a,b)=>b-a); }
+function hasCount(cards, count) { return rankCounts(cards).includes(count); }
+function isPair(cards) { return cards.length === 2 && hasCount(cards, 2); }
+function isTwoPair(cards) { return cards.length === 4 && rankCounts(cards).filter(v => v === 2).length === 2; }
+function isThreeKind(cards) { return cards.length === 3 && hasCount(cards, 3); }
+function isFourKind(cards) { return cards.length === 4 && hasCount(cards, 4); }
+function isFullHouse(cards) {
+  if (cards.length !== 5) return false;
+  const counts = rankCounts(cards);
+  return counts[0] === 3 && counts[1] === 2;
 }
 function isStraight(cards) {
-  if (cards.length < 3) return false;
+  if (cards.length !== 5) return false;
   const nums = cards.map(c => c.n).sort((a,b)=>a-b);
   if (new Set(nums).size !== nums.length) return false;
   return nums.every((n,i) => i === 0 || n === nums[i-1] + 1);
 }
-function isFlush(cards) { return cards.length >= 2 && cards.every(c => c.color === cards[0].color); }
-function isStraightFlush(cards) { return cards.length >= 3 && isStraight(cards) && isFlush(cards); }
+function isFlush(cards) { return cards.length === 5 && cards.every(c => c.color === cards[0].color); }
+function isStraightFlush(cards) { return cards.length === 5 && isStraight(cards) && isFlush(cards); }
 function isValidMode(cards, mode) {
-  if (mode === 'match') return isWholeMatch(cards);
+  if (mode === 'pair') return isPair(cards);
   if (mode === 'twoPair') return isTwoPair(cards);
+  if (mode === 'threeKind') return isThreeKind(cards);
   if (mode === 'straight') return isStraight(cards);
   if (mode === 'flush') return isFlush(cards);
+  if (mode === 'fullHouse') return isFullHouse(cards);
+  if (mode === 'fourKind') return isFourKind(cards);
   if (mode === 'straightFlush') return isStraightFlush(cards);
   return false;
 }
-function comboMultiplier(count) { return Math.pow(2, Math.max(0, count - 1)); }
 function attackScore(cards, mode) {
   const valid = isValidMode(cards, mode);
-  const comboMult = comboMultiplier(cards.length);
-  const straightFlushMult = mode === 'straightFlush' ? 2 : 1;
-  const twoPairMult = mode === 'twoPair' ? 0.75 : 1;
+  const handMult = rarityMult[mode] || 1;
   const weaknessMult = state.enemy?.weakness === mode ? 2 : 1;
   const weaponBonus = state.equipment.weapon?.mode === mode ? state.equipment.weapon.bonus : 0;
   const itemBonus = state.equipment.item?.damageBonus || 0;
-  const baseTotal = valid ? Math.floor(cards.length * comboMult * straightFlushMult * twoPairMult * weaknessMult) : 0;
+  const baseTotal = valid ? Math.floor(cards.length * 4 * handMult * weaknessMult) : 0;
   const total = valid ? baseTotal + weaponBonus + itemBonus : 0;
-  const pieces = [`${cards.length} cards`, `×${comboMult}`];
-  if (straightFlushMult > 1) pieces.push('×2 straight flush');
-  if (twoPairMult < 1) pieces.push('×0.75 two pair');
+  const pieces = [`${cards.length} cards`, `×${handMult} rarity`, '×4 base'];
   if (weaknessMult > 1) pieces.push('×2 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
   if (itemBonus) pieces.push(`+${itemBonus} item`);
   const formula = valid ? `${pieces.join(' ')} = ${total}` : '';
-  return { mode, valid, total, multiplier: comboMult * straightFlushMult * twoPairMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
+  return { mode, valid, total, multiplier: handMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
 }
 function bestAttack(cards) {
   const scores = modes.map(mode => attackScore(cards, mode));
@@ -481,7 +484,7 @@ function buyShopOffer(i) {
   render();
 }
 function leaveShop() { hideModal(); render(); }
-function showVictoryModal() { showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the megaboss on encounter ${finalEncounter}. Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`); }
+function showVictoryModal() { showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the final boss on encounter ${finalEncounter}. Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`); }
 function showModal(html) { const m=document.getElementById('modal'); document.getElementById('modalCard').innerHTML=html; m.classList.add('show'); }
 function hideModal() { document.getElementById('modal').classList.remove('show'); }
 
@@ -491,7 +494,7 @@ function attack() {
   const cards = selectedCards();
   if (!cards.length) { log('Choose at least one card first.'); return; }
   const best = bestAttack(cards);
-  if (!best) { log('No valid combo in those cards. Try Match, Two Pair, Straight, Flush, or Straight Flush patterns.'); render(); return; }
+  if (!best) { log('No valid combo in those cards. Try Pair, Two Pair, Three/Four of a Kind, Straight, Flush, Full House, or Straight Flush.'); render(); return; }
 
   const playedCount = cards.length;
   cards.forEach(c => state.discard.push(c));
@@ -512,7 +515,7 @@ function attack() {
     if (state.defeated === finalEncounter && defeatedBoss) {
       state.finalDefeated = true;
       state.gold += 40;
-      setReward('Megaboss defeated: you win the Forest Crown and 40 gold.');
+      setReward('Final boss defeated: you win the Forest Crown and 40 gold.');
       advanceEnemy();
       log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
       showVictoryModal();
@@ -572,8 +575,9 @@ function renderEnemy() {
   const bossProgress = ((state.defeated % 5) + 1);
   const dots = [1,2,3,4,5].map(i=>`<span class="boss-dot ${i < bossProgress ? 'done' : ''} ${i === 5 ? 'boss' : ''}"></span>`).join('');
   const finalProgress = state.finalDefeated ? 100 : Math.min(100, Math.round(((state.defeated + 1) / finalEncounter) * 100));
-  const toFinal = state.finalDefeated ? 'Forest Crown won — endless mode.' : `${Math.max(0, finalEncounter - state.defeated)} encounter${finalEncounter - state.defeated === 1 ? '' : 's'} to megaboss.`;
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.mega ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.mega ? 'Megaboss: -1 effective hand size. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
+  const pastFinal = Math.max(0, state.defeated - finalEncounter);
+  const toFinal = state.finalDefeated ? `Forest Crown won — endless mode. Past final boss: ${pastFinal} turn${pastFinal === 1 ? '' : 's'}.` : `${Math.max(0, finalEncounter - state.defeated)} encounter${finalEncounter - state.defeated === 1 ? '' : 's'} to final boss.`;
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${modeLabel[state.enemy.weakness]}</strong> attacks score ×2.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.finalBoss ? 'Final boss: -1 effective hand size. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
@@ -621,7 +625,7 @@ function render(){
   document.getElementById('playerHp').classList.toggle('low', state.hp <= Math.ceil(state.maxHp / 3));
   document.getElementById('monsterHp').classList.toggle('low', state.enemy.hp <= Math.ceil(state.enemy.maxHp / 3));
   document.getElementById('encounter').textContent=`${state.defeated + 1}`;
-  document.getElementById('handCount').textContent=`${state.hand.length}/${effectiveHandSize()}${state.enemy.mega ? ` (${state.handSize} base)` : ''}`;
+  document.getElementById('handCount').textContent=`${state.hand.length}/${effectiveHandSize()}${state.enemy.finalBoss ? ` (${state.handSize} base)` : ''}`;
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
   document.getElementById('goldCount').textContent=state.gold;
