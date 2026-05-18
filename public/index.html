@@ -39,46 +39,48 @@ button:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.attack-ready { background: #2f5f35; border-color: var(--green); }
 button.attack-short { background: #67302b; border-color: var(--red); }
-.hp-board { margin: 0 0 16px; display:grid; grid-template-columns: 1fr; gap:12px; }
-.player-hp-row { margin: 14px 0 16px; }
-.hp-card { border: 2px solid var(--gold); border-radius: 18px; padding: 14px 18px; background: linear-gradient(135deg, rgba(226,180,92,0.22), rgba(0,0,0,0.12)); }
+.hp-board { margin: 0 0 12px; display:grid; grid-template-columns: 1fr; gap:12px; }
+.player-hp-row { margin: 0 0 12px; }
+.hp-card { border: 2px solid var(--gold); border-radius: 18px; padding: 12px 14px; background: linear-gradient(135deg, rgba(226,180,92,0.22), rgba(0,0,0,0.12)); }
 .hp-card.monster { border-color: var(--red); background: linear-gradient(135deg, rgba(217,107,95,0.22), rgba(0,0,0,0.12)); }
 .hp-card .label { color: var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:0.12em; font-size:0.8rem; }
-.hp-card .value { color: var(--text); font-size: clamp(2rem, 7vw, 3.8rem); font-weight: 950; line-height: 1; margin-top:4px; }
+.hp-card .value { color: var(--text); font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 950; line-height: 1; margin-top:4px; }
 .hp-card.low { border-color: var(--red); background: linear-gradient(135deg, rgba(217,107,95,0.30), rgba(0,0,0,0.16)); }
-.app { max-width: 1120px; margin: 0 auto; padding: 24px; }
-.header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
-h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
+.app { max-width: 1180px; margin: 0 auto; padding: 16px; }
+.header { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-bottom: 12px; }
+h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; white-space: nowrap; }
 .subtitle { color: var(--muted); max-width: 720px; line-height: 1.5; }
 .about-box { margin-top: 8px; max-width: 720px; }
 .about-box summary { cursor: pointer; color: var(--muted); font-weight: 800; }
 .about-box[open] summary { margin-bottom: 6px; color: var(--gold); }
-.stats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
-.stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; color: var(--muted); }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; color: var(--muted); font-size:0.9rem; }
 .stat strong { color: var(--text); }
-.grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 18px; }
-.panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
+.grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr); gap: 14px; align-items:start; }
+.info-grid { display:grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr); gap:14px; margin-top:14px; align-items:start; }
+.player-panel, .monster-panel { min-height: 100%; }
+.panel { background: rgba(36,32,28,0.9); border: 1px solid var(--border); border-radius: 18px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.22); }
 .panel h2 { margin: 0 0 12px; font-size: 1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 0.12em; }
-.enemy { background: var(--panel2); border: 2px solid var(--border); border-radius: 18px; padding: 18px; min-height: 190px; display: grid; gap: 10px; }
+.enemy { background: var(--panel2); border: 2px solid var(--border); border-radius: 18px; padding: 14px; min-height: 150px; display: grid; gap: 8px; }
 .enemy .name { font-size: 1.5rem; font-weight: 950; }
 .enemy .line { color: var(--muted); }
 .enemy strong { color: var(--text); }
-.hand { display: flex; flex-wrap: wrap; gap: 10px; min-height: 150px; }
-.card { width: 88px; height: 132px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; position: relative; overflow: hidden; }
+.hand { display: flex; flex-wrap: wrap; gap: 8px; min-height: 136px; }
+.card { width: 78px; height: 116px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 9px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; position: relative; overflow: hidden; }
 .card.selected { outline: 4px solid var(--gold); transform: translateY(-5px); }
 .card .num { font-size: 2rem; font-weight: 950; }
 .card.red { background: linear-gradient(160deg, #ffe3dd, #d9877a); }
 .card.green { background: linear-gradient(160deg, #e8f4d4, #9ec177); }
 .card.blue { background: linear-gradient(160deg, #e0eef9, #81afd3); }
 .card.purple { background: linear-gradient(160deg, #eee0f9, #b891d7); }
-.score-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; padding: 12px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.45; }
+.score-preview { margin-top: 10px; border: 1px solid var(--border); border-radius: 14px; padding: 10px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.35; }
 .score-preview strong { color: var(--text); }
 .score-big { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
-.score-number { font-size:2.4rem; font-weight:950; color:var(--gold); line-height:1; }
+.score-number { font-size:2rem; font-weight:950; color:var(--gold); line-height:1; }
 .score-formula { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px; margin-top:8px; }
 .score-part { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:8px; text-align:center; }
 .score-part b { display:block; color:var(--text); font-size:1.05rem; }
-.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .reward-banner { margin: 12px 0; border: 1px solid var(--gold); border-radius: 14px; padding: 10px 12px; background: rgba(226,180,92,0.14); color: var(--text); font-weight: 850; }
 .equipment { display:grid; gap:8px; margin-bottom:14px; }
@@ -104,10 +106,10 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 .rules-box[open] summary { border-bottom: 1px solid var(--border); }
 .rules { color: var(--muted); line-height: 1.45; margin: 0 0 12px; padding-left: 18px; }
 .rules-box .rules { margin: 12px 14px 14px 32px; }
-.log { height: 300px; overflow: auto; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 12px; color: var(--muted); line-height: 1.45; font-size: 0.92rem; }
+.log { height: 220px; overflow: auto; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 12px; color: var(--muted); line-height: 1.45; font-size: 0.92rem; }
 .log p { margin: 0 0 8px; }
 .game-over { font-size: 1.2rem; color: var(--gold); font-weight: 900; }
-@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .stats { justify-content: flex-start; } .actions, .score-formula { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid, .info-grid { grid-template-columns: 1fr; } .header { align-items:flex-start; flex-direction:column; } .stats { justify-content: flex-start; } .actions, .score-formula { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -132,14 +134,9 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
   </div>
 
   <div class="grid">
-    <main class="panel">
-      <div class="hp-board">
-        <div class="hp-card monster" id="monsterHp"><div class="label">Monster HP</div><div class="value" id="monsterHpValue"></div></div>
-      </div>
-      <h2>Enemy</h2>
-      <div class="enemy" id="enemy"></div>
+    <main class="panel player-panel">
       <div class="player-hp-row"><div class="hp-card" id="playerHp"><div class="label">Your HP</div><div class="value" id="playerHpValue"></div></div></div>
-      <h2 style="margin-top:18px;">Adventure Hand</h2>
+      <h2>Adventure Hand</h2>
       <div class="hand" id="hand"></div>
       <div class="actions" style="grid-template-columns: repeat(2, 1fr);">
         <button id="sortNumberBtn">Sort by Number</button>
@@ -155,6 +152,24 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
         <button id="restartBtn">Restart Run</button>
       </div>
     </main>
+
+    <section class="panel monster-panel">
+      <div class="hp-board">
+        <div class="hp-card monster" id="monsterHp"><div class="label">Monster HP</div><div class="value" id="monsterHpValue"></div></div>
+      </div>
+      <h2>Monster</h2>
+      <div class="enemy" id="enemy"></div>
+    </section>
+  </div>
+
+  <div class="info-grid">
+    <section class="panel">
+      <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
+      <h2>Equipment</h2>
+      <div class="equipment" id="equipment"></div>
+      <h2>Deck Contents</h2>
+      <div class="deck-list" id="deckList"></div>
+    </section>
 
     <aside class="panel">
       <details class="rules-box">
@@ -175,11 +190,6 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>
       </details>
-      <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
-      <h2>Equipment</h2>
-      <div class="equipment" id="equipment"></div>
-      <h2>Deck Contents</h2>
-      <div class="deck-list" id="deckList"></div>
       <details class="rules-box log-box">
         <summary>Run Log</summary>
         <div class="log" id="log"></div>
@@ -190,7 +200,7 @@ h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -0.05em; }
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.8-roadside-shop';
+const buildVersion = 'v4.9-compact-layout';
 const startHandSize = 5;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
