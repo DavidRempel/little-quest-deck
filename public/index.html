@@ -81,12 +81,16 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .score-part { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; padding:8px; text-align:center; }
 .score-part b { display:block; color:var(--text); font-size:1.05rem; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.combat-actions { margin-top: 10px; margin-bottom: 10px; }
+.combat-actions button { min-height: 58px; font-size: 1.05rem; border-width: 2px; }
+.combat-actions #attackBtn { background: #5c411e; border-color: var(--gold); }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .reward-banner { margin: 12px 0; border: 1px solid var(--gold); border-radius: 14px; padding: 10px 12px; background: rgba(226,180,92,0.14); color: var(--text); font-weight: 850; }
 .equipment { display:grid; gap:8px; margin-bottom:14px; }
 .slot { border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:rgba(0,0,0,0.14); color:var(--muted); }
 .slot strong { color:var(--text); }
 .slot .icon { font-size:1.3rem; margin-right:6px; }
+.slot.gold-slot { border-color: var(--gold); background: rgba(226,180,92,0.12); color: var(--text); font-weight: 850; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.68); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
 .modal.show { display:flex; }
 .modal-card { width:min(560px, 100%); border:2px solid var(--gold); border-radius:20px; background:linear-gradient(160deg,#302a24,#1f1b18); padding:20px; box-shadow:0 24px 80px rgba(0,0,0,0.5); }
@@ -142,12 +146,12 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
         <button id="sortNumberBtn">Sort by Number</button>
         <button id="sortColorBtn">Sort by Colour</button>
       </div>
-      <div class="score-preview" id="scorePreview"></div>
-      <div class="actions">
+      <div class="actions combat-actions">
         <button class="action-btn" id="attackBtn">Attack <small>auto-best combo</small></button>
         <button class="action-btn" id="discardBtn">Discard X → Draw X <small>selected cards; enemy hits</small></button>
         <button class="action-btn" id="runBtn">Run <small>50% escape; no bosses</small></button>
       </div>
+      <div class="score-preview" id="scorePreview"></div>
       <div class="actions" style="grid-template-columns: 1fr;">
         <button id="restartBtn">Restart Run</button>
       </div>
@@ -186,7 +190,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
         <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
         <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
-        <li>Equipment slots start with basic no-bonus gear. New gear can be equipped, sold for gold, or tossed. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
+        <li>Equipment slots start with basic no-bonus gear. New gear can be equipped or sold for gold. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>
       </details>
@@ -200,7 +204,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.9-compact-layout';
+const buildVersion = 'v4.10-stable-actions';
 const startHandSize = 5;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'twoPair', 'straight', 'flush', 'straightFlush'];
@@ -395,7 +399,7 @@ function addGold(amount, reason) {
 function openRewardChoice(item) {
   state.pendingReward = item;
   const sellValue = item.value || 5;
-  showModal(`<h2>Found Gear</h2><p>${itemDescription(item)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button><button onclick="tossPendingReward()">Toss it</button></div>`);
+  showModal(`<h2>Found Gear</h2><p>${itemDescription(item)}</p><div class="modal-actions"><button onclick="equipPendingReward()">Equip</button><button onclick="sellPendingReward()">Sell for ${sellValue} gold</button></div>`);
 }
 
 function equipPendingReward() {
@@ -415,14 +419,6 @@ function sellPendingReward() {
   hideModal();
   render();
 }
-function tossPendingReward() {
-  if (!state.pendingReward) return;
-  setReward(`Tossed ${state.pendingReward.name}. Ruthless but tidy.`);
-  state.pendingReward = null;
-  hideModal();
-  render();
-}
-
 function makeShopOffers() {
   return [
     { kind:'gear', cost:10, item:makeRewardItem('shop') },
@@ -553,7 +549,7 @@ function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''
 function countCards(cards, keyFn){ return cards.reduce((acc,c)=>{ const k=keyFn(c); acc[k]=(acc[k]||0)+1; return acc; },{}); }
 function pills(counts, order){ return order.map(k=>`<span class="deck-pill">${k}: <strong>${counts[k]||0}</strong></span>`).join(''); }
 function renderEquipment(){
-  document.getElementById('equipment').innerHTML = `<div class="slot"><span class="icon">🗡️</span><strong>Weapon:</strong> ${itemDescription(state.equipment.weapon)}</div><div class="slot"><span class="icon">🛡️</span><strong>Armor:</strong> ${itemDescription(state.equipment.armor)}</div><div class="slot"><span class="icon">🎒</span><strong>Item:</strong> ${itemDescription(state.equipment.item)}</div>`;
+  document.getElementById('equipment').innerHTML = `<div class="slot"><span class="icon">🗡️</span><strong>Weapon:</strong> ${itemDescription(state.equipment.weapon)}</div><div class="slot"><span class="icon">🛡️</span><strong>Armor:</strong> ${itemDescription(state.equipment.armor)}</div><div class="slot"><span class="icon">🎒</span><strong>Item:</strong> ${itemDescription(state.equipment.item)}</div><div class="slot gold-slot"><span class="icon">🪙</span><strong>Gold:</strong> ${state.gold}</div>`;
   document.getElementById('rewardBanner').textContent = state.lastReward;
 }
 function renderDeckList(){
