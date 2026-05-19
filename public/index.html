@@ -223,7 +223,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.19-smarter-rewards';
+const buildVersion = 'v4.20-final-boss-curse';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -310,7 +310,7 @@ function drawOne(announce=true) {
   return false;
 }
 
-function effectiveHandSize() { return state.enemy?.finalBoss ? Math.max(1, state.handSize - 1) : state.handSize; }
+function effectiveHandSize() { return state.handSize; }
 function applyHandLimit() {
   const limit = effectiveHandSize();
   let removed = 0;
@@ -327,16 +327,19 @@ function sortHand() {
 function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function rankCounts(cards) { return Object.values(countCards(cards, c => c.n)).sort((a,b)=>b-a); }
-function matchChunkScore(cards) {
+function matchChunkScore(cards, finalPenalty=false) {
   if (cards.length < 2) return 0;
   const counts = rankCounts(cards);
+  let penaltyUsed = false;
   let score = 0;
   counts.forEach(count => {
-    if (count >= 2) score += Math.floor(count * sizeMultiplier(count) * traitMult.match);
+    let effectiveCount = count;
+    if (finalPenalty && !penaltyUsed && effectiveCount > 1) { effectiveCount--; penaltyUsed = true; }
+    if (effectiveCount >= 2) score += Math.floor(effectiveCount * sizeMultiplier(effectiveCount) * traitMult.match);
   });
   return score;
 }
-function isMatchCombo(cards) { return matchChunkScore(cards) > 0; }
+function isMatchCombo(cards) { return matchChunkScore(cards, false) > 0; }
 function isSequenceCombo(cards) {
   if (cards.length < 3) return false;
   const nums = cards.map(c => c.n).sort((a,b)=>a-b);
@@ -357,10 +360,12 @@ function comboName(traits) { return traits.map(t => weaknessLabel[t]).join(' + '
 function scoreCombo(cards) {
   const traits = traitInfo(cards);
   const valid = traits.length > 0;
-  const sizeMult = sizeMultiplier(cards.length);
-  const matchBase = traits.includes('match') ? matchChunkScore(cards) : 0;
-  const sequenceBase = traits.includes('sequence') ? Math.floor(cards.length * sizeMult * traitMult.sequence) : 0;
-  const flushBase = traits.includes('flush') ? Math.floor(cards.length * sizeMult * traitMult.flush) : 0;
+  const finalPenalty = !!state.enemy?.finalBoss;
+  const scoreCount = finalPenalty ? Math.max(1, cards.length - 1) : cards.length;
+  const sizeMult = sizeMultiplier(scoreCount);
+  const matchBase = traits.includes('match') ? matchChunkScore(cards, finalPenalty) : 0;
+  const sequenceBase = traits.includes('sequence') ? Math.floor(scoreCount * sizeMult * traitMult.sequence) : 0;
+  const flushBase = traits.includes('flush') ? Math.floor(scoreCount * sizeMult * traitMult.flush) : 0;
   const baseBeforeWeakness = matchBase + sequenceBase + flushBase;
   const weaknessMult = valid && traits.includes(state.enemy?.weakness) ? 1.5 : 1;
   const weaponBonus = state.equipment.weapon?.mode && traits.includes(state.equipment.weapon.mode) ? state.equipment.weapon.bonus : 0;
@@ -369,8 +374,9 @@ function scoreCombo(cards) {
   const total = valid ? Math.floor(baseBeforeWeakness * weaknessMult) + weaponBonus + weaponAnyBonus + itemBonus : 0;
   const pieces = [];
   if (matchBase) pieces.push(`match chunks ${matchBase}`);
-  if (sequenceBase) pieces.push(`sequence ${cards.length} cards ×${sizeMult} ×${traitMult.sequence} = ${sequenceBase}`);
-  if (flushBase) pieces.push(`flush ${cards.length} cards ×${sizeMult} ×${traitMult.flush} = ${flushBase}`);
+  if (finalPenalty) pieces.push(`final boss curse: scores as ${scoreCount} card${scoreCount === 1 ? '' : 's'}`);
+  if (sequenceBase) pieces.push(`sequence ${scoreCount} scoring cards ×${sizeMult} ×${traitMult.sequence} = ${sequenceBase}`);
+  if (flushBase) pieces.push(`flush ${scoreCount} scoring cards ×${sizeMult} ×${traitMult.flush} = ${flushBase}`);
   if (weaknessMult > 1) pieces.push('×1.5 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
   if (weaponAnyBonus) pieces.push(`+${weaponAnyBonus} weapon`);
@@ -633,7 +639,7 @@ function renderEnemy() {
   const finalProgress = state.finalDefeated ? 100 : Math.min(100, Math.round(((state.defeated + 1) / finalEncounter) * 100));
   const pastFinal = Math.max(0, state.defeated - finalEncounter);
   const toFinal = state.finalDefeated ? `Forest Crown won — endless mode. Past final boss: ${pastFinal} turn${pastFinal === 1 ? '' : 's'}.` : `${Math.max(0, finalEncounter - state.defeated)} encounter${finalEncounter - state.defeated === 1 ? '' : 's'} to final boss.`;
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.finalBoss ? 'Final boss: -1 effective hand size. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.finalBoss ? 'Final boss: combos score as one card smaller. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
@@ -683,7 +689,7 @@ function render(){
   document.getElementById('playerHp').classList.toggle('low', state.hp <= Math.ceil(state.maxHp / 3));
   document.getElementById('monsterHp').classList.toggle('low', state.enemy.hp <= Math.ceil(state.enemy.maxHp / 3));
   document.getElementById('encounter').textContent=`${state.defeated + 1}`;
-  document.getElementById('handCount').textContent=`${state.hand.length}/${effectiveHandSize()}${state.enemy.finalBoss ? ` (${state.handSize} base)` : ''}`;
+  document.getElementById('handCount').textContent=`${state.hand.length}/${effectiveHandSize()}`;
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
   document.getElementById('goldCount').textContent=state.gold;
@@ -692,6 +698,8 @@ function render(){
   if (state.monsterHit) { pulseElement('monsterHp', 'hp-shake'); state.monsterHit = false; }
   const attackBtn = document.getElementById('attackBtn');
   const best = bestAttack(selectedCards());
+  const weaknessHot = !!best && best.traits.includes(state.enemy.weakness) && !state.gameOver;
+  attackBtn.innerHTML = `${weaknessHot ? '🔥 ' : ''}Attack${weaknessHot ? ' 🔥' : ''}<small>auto-best combo</small>`;
   attackBtn.disabled = state.gameOver;
   attackBtn.classList.toggle('attack-ready', !!best && best.total >= state.enemy.hp && !state.gameOver);
   attackBtn.classList.toggle('attack-short', !!best && best.total < state.enemy.hp && !state.gameOver);
