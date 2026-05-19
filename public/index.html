@@ -223,7 +223,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.18-balanced-combos';
+const buildVersion = 'v4.19-smarter-rewards';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -364,14 +364,16 @@ function scoreCombo(cards) {
   const baseBeforeWeakness = matchBase + sequenceBase + flushBase;
   const weaknessMult = valid && traits.includes(state.enemy?.weakness) ? 1.5 : 1;
   const weaponBonus = state.equipment.weapon?.mode && traits.includes(state.equipment.weapon.mode) ? state.equipment.weapon.bonus : 0;
+  const weaponAnyBonus = state.equipment.weapon?.damageBonus || 0;
   const itemBonus = state.equipment.item?.damageBonus || 0;
-  const total = valid ? Math.floor(baseBeforeWeakness * weaknessMult) + weaponBonus + itemBonus : 0;
+  const total = valid ? Math.floor(baseBeforeWeakness * weaknessMult) + weaponBonus + weaponAnyBonus + itemBonus : 0;
   const pieces = [];
   if (matchBase) pieces.push(`match chunks ${matchBase}`);
   if (sequenceBase) pieces.push(`sequence ${cards.length} cards ×${sizeMult} ×${traitMult.sequence} = ${sequenceBase}`);
   if (flushBase) pieces.push(`flush ${cards.length} cards ×${sizeMult} ×${traitMult.flush} = ${flushBase}`);
   if (weaknessMult > 1) pieces.push('×1.5 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
+  if (weaponAnyBonus) pieces.push(`+${weaponAnyBonus} weapon`);
   if (itemBonus) pieces.push(`+${itemBonus} item`);
   const formula = valid ? `${pieces.join(' + ')} = ${total}` : '';
   return { mode: traits[0], traits, valid, total, multiplier: weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
@@ -387,9 +389,9 @@ function bestAttack(cards) {
   return score.valid ? score : null;
 }
 
-function enemyAttack(reason='', multiplier=1) {
+function enemyAttack(reason='', multiplier=1, extraBlock=0) {
   if (state.gameOver) return;
-  const blocked = state.equipment.armor?.reduction || 0;
+  const blocked = (state.equipment.armor?.reduction || 0) + extraBlock;
   const rawDamage = Math.floor(state.enemy.damage * multiplier);
   const damage = Math.max(0, rawDamage - blocked);
   state.hp -= damage;
@@ -415,21 +417,50 @@ function itemDescription(item) {
   if (item.reduction) bits.push(`Block ${item.reduction}`);
   if (item.damageBonus) bits.push(`All attacks +${item.damageBonus}`);
   if (item.hpBonus) bits.push(`Max HP +${item.hpBonus}`);
+  if (item.runBonus) bits.push(`Run chance +${Math.round(item.runBonus * 100)}%`);
+  if (item.discardBlock) bits.push(`Discard hit block +${item.discardBlock}`);
+  if (item.goldBonus) bits.push(`Gold drops +${item.goldBonus}`);
+  if (item.healAfterBoss) bits.push(`Heal ${item.healAfterBoss} after bosses`);
+  if (item.extraDiscardDraw) bits.push(`Discard replaces +${item.extraDiscardDraw}`);
   return `${item.name}${bits.length ? ` — ${bits.join(', ')}` : ' — no bonus'}`;
 }
 function itemModalDescription(item) { return `${item.icon || ''} ${itemDescription(item)}`.trim(); }
 
-function makeRewardItem(source='monster') {
-  const roll = sample(['weapon','armor','itemDamage','itemHp']);
+function makeEquipmentPool(source='monster') {
   const scale = source === 'shop' ? 1 : 0;
-  if (roll === 'weapon') {
-    const mode = sample(modes);
-    return { slot:'weapon', icon:'🗡️', name:`${modeLabel[mode]} Blade`, mode, bonus:4 + scale, value:7 };
-  }
-  if (roll === 'armor') return { slot:'armor', icon:'🛡️', name:'Patchwork Armor', reduction:1 + scale, value:7 };
-  if (roll === 'itemHp') return { slot:'item', icon:'❤️', name:'Heart Charm', hpBonus:4 + scale, value:8 };
-  return { slot:'item', icon:'🪓', name:'Sharpening Stone', damageBonus:3 + scale, value:8 };
+  const weaponBonus = 4 + scale;
+  const armorBonus = 1 + scale;
+  const itemDamage = 3 + scale;
+  return [
+    { slot:'weapon', icon:'🗡️', name:'Balanced Blade', mode:null, bonus:2 + scale, damageBonus:2 + scale, value:7 },
+    { slot:'weapon', icon:'🪓', name:'Match Axe', mode:'match', bonus:weaponBonus, value:7 },
+    { slot:'weapon', icon:'🏹', name:'Sequence Bow', mode:'sequence', bonus:weaponBonus, value:7 },
+    { slot:'weapon', icon:'🔱', name:'Flush Trident', mode:'flush', bonus:weaponBonus, value:7 },
+    { slot:'weapon', icon:'✨', name:'Combo Wand', mode:null, bonus:0, damageBonus:itemDamage, value:9 },
+    { slot:'armor', icon:'🛡️', name:'Patchwork Armor', reduction:armorBonus, value:7 },
+    { slot:'armor', icon:'🥾', name:'Running Boots', reduction:armorBonus, runBonus:0.15, value:8 },
+    { slot:'armor', icon:'🧥', name:'Padded Coat', reduction:armorBonus, hpBonus:2 + scale, value:8 },
+    { slot:'armor', icon:'🪶', name:'Feather Cloak', reduction:Math.max(1, armorBonus - 1), discardBlock:1, value:8 },
+    { slot:'item', icon:'❤️', name:'Heart Charm', hpBonus:4 + scale, value:8 },
+    { slot:'item', icon:'🪓', name:'Sharpening Stone', damageBonus:itemDamage, value:8 },
+    { slot:'item', icon:'🧲', name:'Lucky Magnet', goldBonus:1 + scale, value:8 },
+    { slot:'item', icon:'🍎', name:'Snack Pouch', healAfterBoss:3 + scale, value:8 },
+    { slot:'item', icon:'🃏', name:'Card Sleeve', extraDiscardDraw:1, value:8 }
+  ];
 }
+function equipmentKey(item) { return `${item.slot}:${item.name}:${item.mode || ''}:${item.bonus || 0}:${item.damageBonus || 0}:${item.reduction || 0}:${item.hpBonus || 0}`; }
+function isSameEquipment(a,b) { return !!a && !!b && equipmentKey(a) === equipmentKey(b); }
+function isBetterThanCurrent(item) {
+  const current = state.equipment[item.slot];
+  return !isSameEquipment(item, current);
+}
+function makeRewardItem(source='monster', exclude=[]) {
+  const excludeKeys = new Set(exclude.map(equipmentKey));
+  let pool = makeEquipmentPool(source).filter(item => isBetterThanCurrent(item) && !excludeKeys.has(equipmentKey(item)));
+  if (!pool.length) pool = makeEquipmentPool(source).filter(item => !excludeKeys.has(equipmentKey(item)));
+  return sample(pool);
+}
+
 
 function applyEquipmentItem(item) {
   const old = state.equipment[item.slot];
@@ -476,17 +507,23 @@ function sellPendingReward() {
   render();
 }
 function makeShopOffers() {
-  return [
-    { kind:'gear', cost:10, item:makeRewardItem('shop') },
-    { kind:'heal', cost:6, label:'Soup and bandages', text:'Heal 6 HP' },
-    { kind:'hand', cost:14, label:'Bigger Backpack', text:`+1 hand size, max ${maxHandSize}` }
-  ];
+  const offers = [];
+  const used = [];
+  for (let i=0; i<2; i++) {
+    const item = makeRewardItem('shop', used);
+    if (item) { used.push(item); offers.push({ kind:'gear', cost:10 + i * 2, item }); }
+  }
+  if (state.hp < state.maxHp) offers.push({ kind:'heal', cost:6, label:'Soup and bandages', text:'Heal 6 HP' });
+  if (state.handSize < maxHandSize) offers.push({ kind:'hand', cost:14, label:'Bigger Backpack', text:`+1 hand size, max ${maxHandSize}` });
+  if (!offers.length) offers.push({ kind:'gold', cost:0, label:'Window shopping', text:'Nothing useful today' });
+  return offers;
 }
+
 function openShop() {
   state.shopOffers = makeShopOffers();
   const offers = state.shopOffers.map((offer,i)=>{
     const desc = offer.kind === 'gear' ? `${itemModalDescription(offer.item)}<br><small>Current ${offer.item.slot}: ${itemDescription(state.equipment[offer.item.slot])}</small>` : `${offer.label} — ${offer.text}`;
-    return `<div class="shop-offer"><strong>${desc}</strong><br><small>${offer.cost} gold</small><button ${state.gold < offer.cost ? 'disabled' : ''} onclick="buyShopOffer(${i})">Buy</button></div>`;
+    return `<div class="shop-offer"><strong>${desc}</strong><br><small>${offer.cost} gold</small><button ${offer.kind === 'gold' || state.gold < offer.cost ? 'disabled' : ''} onclick="buyShopOffer(${i})">${offer.kind === 'gold' ? 'Sold out' : 'Buy'}</button></div>`;
   }).join('');
   showModal(`<h2>🛒 Roadside Supply Store</h2><p>The boss drops a purse and a suspiciously well-placed shop appears. Gold: <strong>${state.gold}</strong></p><div class="modal-actions">${offers}<button onclick="leaveShop()">Leave shop</button></div>`);
 }
@@ -538,13 +575,14 @@ function attack() {
       log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
       showVictoryModal();
     } else if (defeatedBoss) {
-      addGold(12 + Math.floor(state.defeated / 5) * 3, 'Boss purse');
+      addGold(12 + Math.floor(state.defeated / 5) * 3 + (state.equipment.item?.goldBonus || 0), 'Boss purse');
+      if (state.equipment.item?.healAfterBoss) state.hp = Math.min(state.maxHp, state.hp + state.equipment.item.healAfterBoss);
       advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
       openShop();
     } else {
-      addGold(2 + Math.floor(Math.random() * 3), 'Monster loot');
-      if (Math.random() < 0.30) openRewardChoice(makeRewardItem('monster'));
+      addGold(2 + Math.floor(Math.random() * 3) + (state.equipment.item?.goldBonus || 0), 'Monster loot');
+      if (Math.random() < 0.30) { const item = makeRewardItem('monster'); if (item) openRewardChoice(item); }
       advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
@@ -558,7 +596,7 @@ function attack() {
 function runAway() {
   if (state.gameOver) return;
   if (state.enemy.boss) { log(`${state.enemy.name} blocks the path. You cannot run from bosses.`); render(); return; }
-  if (Math.random() < 0.5) {
+  if (Math.random() < Math.min(0.85, 0.5 + (state.equipment.armor?.runBonus || 0))) {
     const oldName = state.enemy.name;
     state.defeated++;
     advanceEnemy();
@@ -580,10 +618,10 @@ function discardSelected() {
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
   let drawn = 0;
-  for (let i = 0; i < count; i++) if (drawOne()) drawn++;
+  for (let i = 0; i < count + (state.equipment.item?.extraDiscardDraw || 0); i++) if (drawOne()) drawn++;
   sortHand();
   log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.`);
-  enemyAttack('discarding cards', 0.5);
+  enemyAttack('discarding cards', 0.5, state.equipment.armor?.discardBlock || 0);
   render();
 }
 
