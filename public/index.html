@@ -206,7 +206,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
         <li>Enemy weakness is one broad trait: Match, Sequence, or Colour. Hands can stack bonuses from multiple traits; a straight flush gets both Sequence and Colour.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
         <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
-        <li><strong>Discard X → Draw X</strong> discards as many selected cards as you want, then draws the same number back, so your hand does not grow.</li>
+        <li><strong>Discard</strong> replaces selected cards. The enemy hits afterward, but only at half strength rounded down.</li>
         <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
         <li>Equipment slots start with basic no-bonus gear. New gear can be equipped or sold for gold. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
@@ -223,7 +223,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.15-trait-weakness';
+const buildVersion = 'v4.16-discard-half-hit';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -393,13 +393,15 @@ function bestAttack(cards) {
   return scores.filter(s => s.valid).sort((a,b)=>b.total-a.total)[0] || null;
 }
 
-function enemyAttack(reason='') {
+function enemyAttack(reason='', multiplier=1) {
   if (state.gameOver) return;
   const blocked = state.equipment.armor?.reduction || 0;
-  const damage = Math.max(0, state.enemy.damage - blocked);
+  const rawDamage = Math.floor(state.enemy.damage * multiplier);
+  const damage = Math.max(0, rawDamage - blocked);
   state.hp -= damage;
   if (damage > 0) state.playerHit = true;
-  log(`${state.enemy.name} hits you for ${damage} HP${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
+  const halfText = multiplier < 1 ? ' half-strength' : '';
+  log(`${state.enemy.name} hits you for ${damage} HP${halfText}${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
   if (state.hp <= 0) {
     state.hp = 0;
     state.gameOver = true;
@@ -526,7 +528,7 @@ function attack() {
   let drawn = state.hand.length - beforeDraw;
 
   const previousHp = state.enemy.hp;
-  const attackDamage = best.total >= state.enemy.hp ? best.total : best.partialTotal;
+  const attackDamage = best.total;
   state.enemy.hp = Math.max(0, state.enemy.hp - attackDamage);
   if (attackDamage > 0) state.monsterHit = true;
 
@@ -553,7 +555,7 @@ function attack() {
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
   } else {
-    log(`Hit: ${modeLabel[best.mode]} partial hit deals ${attackDamage} (half of ${best.total}). ${state.enemy.name} drops from ${previousHp}/${state.enemy.maxHp} to ${state.enemy.hp}/${state.enemy.maxHp} HP. Played ${playedCount}, drew ${drawn}.`);
+    log(`Hit: ${modeLabel[best.mode]} deals ${attackDamage}. ${state.enemy.name} drops from ${previousHp}/${state.enemy.maxHp} to ${state.enemy.hp}/${state.enemy.maxHp} HP. Played ${playedCount}, drew ${drawn}.`);
     enemyAttack('a partial attack');
   }
   render();
@@ -587,7 +589,7 @@ function discardSelected() {
   for (let i = 0; i < count; i++) if (drawOne()) drawn++;
   sortHand();
   log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.`);
-  enemyAttack('cycling cards');
+  enemyAttack('discarding cards', 0.5);
   render();
 }
 
@@ -617,7 +619,7 @@ function renderPreview() {
   if(!cards.length){ el.innerHTML='Select cards. Attack will automatically use the best valid combo.'; return; }
   const scores = modes.map(mode => attackScore(cards, mode));
   const best = bestAttack(cards);
-  const verdict = best ? `Best: <strong>${modeLabel[best.mode]} ${best.total}</strong> vs ${state.enemy.hp}/${state.enemy.maxHp} HP — ${best.margin >= 0 ? `defeats by ${best.margin}` : `partial hit ${best.partialTotal}, leaves ${Math.max(0, state.enemy.hp - best.partialTotal)} HP`}.` : 'No valid combo yet.';
+  const verdict = best ? `Best: <strong>${modeLabel[best.mode]} ${best.total}</strong> vs ${state.enemy.hp}/${state.enemy.maxHp} HP — ${best.margin >= 0 ? `defeats by ${best.margin}` : `leaves ${Math.max(0, state.enemy.hp - best.total)} HP`}.` : 'No valid combo yet.';
   el.innerHTML=`<div class="score-big"><span class="score-number">${cards.length}</span><strong>selected card${cards.length>1?'s':''}</strong></div><div>${verdict}</div><div class="score-formula">${scores.map(s=>`<div class="score-part"><b>${s.valid?`${s.total}/${state.enemy.hp}`:'—'}</b>${modeLabel[s.mode]}${s.valid?`<br><small>${s.formula}</small>`:''}</div>`).join('')}</div>`;
 }
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
