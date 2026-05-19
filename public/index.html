@@ -201,7 +201,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
         <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Sequence, or Flush. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
         <li>Starting hand size is 5. Hand size can rise to a max of 7.</li>
         <li><strong>Score math:</strong> selected card count × size multiplier × combo-family bonuses. Match, Sequence, and Flush bonuses can stack. Matching the enemy weakness adds another bonus. Weapons add bonus damage to their attack family.</li>
-        <li><strong>Combo bonuses:</strong> Match ×1.35, Sequence ×1.45, Flush ×1.5. A straight flush gets both Sequence and Flush. A full house is in the Match family.</li>
+        <li><strong>Combo bonuses:</strong> Match ×1.25, Sequence ×1.25, Flush ×1.5. A straight flush gets both Sequence and Flush. Match hands score in chunks, so two pair = pair + pair and full house = three-kind + pair.</li>
         <li><strong>Valid combos:</strong> Match = all selected cards are in matching-number groups, including pair, two pair, three/four of a kind, or full house. Sequence = 3+ consecutive numbers. Flush = 3+ same colour.</li>
         <li>Enemy weakness is one broad family: Match, Sequence, or Flush. Combo bonuses stack; a straight flush gets both Sequence and Flush.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
@@ -223,7 +223,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 
 <script>
-const buildVersion = 'v4.17-simple-combos';
+const buildVersion = 'v4.18-balanced-combos';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -232,7 +232,7 @@ const modes = ['match', 'sequence', 'flush'];
 const weaknessTypes = ['match', 'sequence', 'flush'];
 const weaknessLabel = { match:'Match', sequence:'Sequence', flush:'Flush' };
 const modeLabel = { match:'Match', sequence:'Sequence', flush:'Flush' };
-const traitMult = { match:1.35, sequence:1.45, flush:1.5 };
+const traitMult = { match:1.25, sequence:1.25, flush:1.5 };
 const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
 const finalBossName = 'The Crown-Eating Dragon';
@@ -327,11 +327,16 @@ function sortHand() {
 function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function rankCounts(cards) { return Object.values(countCards(cards, c => c.n)).sort((a,b)=>b-a); }
-function isMatchCombo(cards) {
-  if (cards.length < 2) return false;
-  const counts = countCards(cards, c => c.n);
-  return Object.values(counts).every(v => v >= 2);
+function matchChunkScore(cards) {
+  if (cards.length < 2) return 0;
+  const counts = rankCounts(cards);
+  let score = 0;
+  counts.forEach(count => {
+    if (count >= 2) score += Math.floor(count * sizeMultiplier(count) * traitMult.match);
+  });
+  return score;
 }
+function isMatchCombo(cards) { return matchChunkScore(cards) > 0; }
 function isSequenceCombo(cards) {
   if (cards.length < 3) return false;
   const nums = cards.map(c => c.n).sort((a,b)=>a-b);
@@ -353,20 +358,25 @@ function scoreCombo(cards) {
   const traits = traitInfo(cards);
   const valid = traits.length > 0;
   const sizeMult = sizeMultiplier(cards.length);
-  const familyMult = traits.reduce((m,t)=>m * traitMult[t], 1);
+  const matchBase = traits.includes('match') ? matchChunkScore(cards) : 0;
+  const sequenceBase = traits.includes('sequence') ? Math.floor(cards.length * sizeMult * traitMult.sequence) : 0;
+  const flushBase = traits.includes('flush') ? Math.floor(cards.length * sizeMult * traitMult.flush) : 0;
+  const baseBeforeWeakness = matchBase + sequenceBase + flushBase;
   const weaknessMult = valid && traits.includes(state.enemy?.weakness) ? 1.5 : 1;
   const weaponBonus = state.equipment.weapon?.mode && traits.includes(state.equipment.weapon.mode) ? state.equipment.weapon.bonus : 0;
   const itemBonus = state.equipment.item?.damageBonus || 0;
-  const baseTotal = valid ? Math.floor(cards.length * sizeMult * familyMult * weaknessMult) : 0;
-  const total = valid ? baseTotal + weaponBonus + itemBonus : 0;
-  const pieces = [`${cards.length} cards`, `×${sizeMult} size`];
-  traits.forEach(t => pieces.push(`×${traitMult[t]} ${weaknessLabel[t].toLowerCase()}`));
+  const total = valid ? Math.floor(baseBeforeWeakness * weaknessMult) + weaponBonus + itemBonus : 0;
+  const pieces = [];
+  if (matchBase) pieces.push(`match chunks ${matchBase}`);
+  if (sequenceBase) pieces.push(`sequence ${cards.length} cards ×${sizeMult} ×${traitMult.sequence} = ${sequenceBase}`);
+  if (flushBase) pieces.push(`flush ${cards.length} cards ×${sizeMult} ×${traitMult.flush} = ${flushBase}`);
   if (weaknessMult > 1) pieces.push('×1.5 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
   if (itemBonus) pieces.push(`+${itemBonus} item`);
-  const formula = valid ? `${pieces.join(' ')} = ${total}` : '';
-  return { mode: traits[0], traits, valid, total, multiplier: sizeMult * familyMult * weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
+  const formula = valid ? `${pieces.join(' + ')} = ${total}` : '';
+  return { mode: traits[0], traits, valid, total, multiplier: weaknessMult, formula, margin: valid ? total - state.enemy.hp : null };
 }
+
 function attackScore(cards, mode) {
   const score = scoreCombo(cards);
   return { ...score, mode, valid: score.traits.includes(mode) };
