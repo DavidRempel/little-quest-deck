@@ -18,3 +18,12 @@ python3 -m http.server 8765
 ```
 
 Then open <http://localhost:8765>.
+
+Scoring/combo tests:
+
+```bash
+cd public
+python3 -m http.server 8765
+```
+
+Then open <http://localhost:8765/scoring-tests.html>. The page prints pass/fail results and also exposes `window.__LQD_TEST_RESULTS__` in the browser console.

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Quest Deck Scoring Tests</title>
+<style>
+body { margin: 24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #211b14; background: #f7ebd1; }
+h1 { margin: 0 0 8px; }
+#summary { font-weight: 800; margin: 0 0 16px; }
+.pass { color: #2f6f35; }
+.fail { color: #9b2f2a; }
+pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; padding: 12px; border-radius: 8px; }
+#game-fixture { display: none; }
+</style>
+</head>
+<body>
+<h1>Little Quest Deck Scoring Tests</h1>
+<p id="summary">Running...</p>
+<pre id="results"></pre>
+
+<div id="game-fixture">
+  <strong id="buildLabel"></strong>
+  <strong id="buildStat"></strong>
+  <strong id="hp"></strong>
+  <strong id="encounter"></strong>
+  <strong id="handCount"></strong>
+  <strong id="deckCount"></strong>
+  <strong id="discardCount"></strong>
+  <strong id="goldCount"></strong>
+  <div id="playerHp"><div id="playerHpValue"></div></div>
+  <div id="monsterHp"><div id="monsterHpValue"></div></div>
+  <div id="hand"></div>
+  <button id="sortNumberBtn"></button>
+  <button id="sortColorBtn"></button>
+  <button id="attackBtn"></button>
+  <button id="discardBtn"></button>
+  <button id="runBtn"></button>
+  <button id="restartBtn"></button>
+  <div id="scorePreview"></div>
+  <div id="enemy"></div>
+  <div id="equipment"></div>
+  <div id="rewardBanner"></div>
+  <div id="deckList"></div>
+  <div id="log"></div>
+  <div id="modal"><div id="modalCard"></div></div>
+</div>
+
+<script src="game.js"></script>
+<script>
+(() => {
+  const api = window.LittleQuestDeckScoring;
+  const output = [];
+  const results = [];
+  const card = (n, color='red') => ({ n, color, id: `${n}-${color}-${Math.random()}` });
+  const score = (cards, options) => api.scoreCombo(cards, options);
+
+  function assertEqual(name, actual, expected) {
+    const pass = Object.is(actual, expected);
+    results.push(pass);
+    output.push(`${pass ? 'PASS' : 'FAIL'} ${name}: expected ${expected}, got ${actual}`);
+  }
+
+  function assertArrayEqual(name, actual, expected) {
+    assertEqual(name, actual.join(','), expected.join(','));
+  }
+
+  assertEqual('pair is a match combo', api.isMatchCombo([card(2, 'red'), card(2, 'blue')]), true);
+  assertEqual('pair match score', score([card(2, 'red'), card(2, 'blue')]).total, 5);
+
+  assertEqual('1-2-3 is a sequence combo', api.isSequenceCombo([card(1), card(2, 'blue'), card(3, 'green')]), true);
+  assertEqual('three-card sequence score', score([card(1), card(2, 'blue'), card(3, 'green')]).total, 15);
+
+  assertEqual('three red cards are a flush combo', api.isFlushCombo([card(1), card(4), card(8)]), true);
+  assertEqual('three-card flush score', score([card(1), card(4), card(8)]).total, 18);
+
+  const straightFlush = [card(1), card(2), card(3)];
+  assertArrayEqual('straight flush stacks sequence and flush', api.traitInfo(straightFlush), ['sequence', 'flush']);
+  assertEqual('straight flush stacked score', score(straightFlush).total, 33);
+
+  assertEqual('two pair match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(5, 'green'), card(5, 'purple')]).total, 10);
+  assertEqual('full house match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(2, 'green'), card(5, 'red'), card(5, 'purple')]).total, 20);
+
+  assertEqual('weakness bonus applies after base combo score', score([card(2, 'red'), card(2, 'blue')], { weakness: 'match' }).total, 7);
+  assertEqual(
+    'matching weapon, any-weapon, and item bonuses add after combo score',
+    score([card(1), card(2, 'blue'), card(3, 'green')], {
+      weapon: { mode: 'sequence', bonus: 4, damageBonus: 2 },
+      item: { damageBonus: 3 }
+    }).total,
+    24
+  );
+
+  assertEqual('final boss curse reduces sequence scoring count by one', score([card(1), card(2, 'blue'), card(3, 'green')], { finalBoss: true }).total, 5);
+  assertEqual('final boss curse reduces stacked sequence and flush scoring count by one', score(straightFlush, { finalBoss: true }).total, 11);
+  assertEqual('final boss curse reduces one match chunk before scoring', score([card(2, 'red'), card(2, 'blue'), card(2, 'green')], { finalBoss: true }).total, 5);
+
+  const passed = results.filter(Boolean).length;
+  const failed = results.length - passed;
+  document.getElementById('summary').textContent = `${passed}/${results.length} passing`;
+  document.getElementById('summary').className = failed ? 'fail' : 'pass';
+  document.getElementById('results').textContent = output.join('\n');
+  window.__LQD_TEST_RESULTS__ = { passed, failed, total: results.length, output };
+  if (failed) console.error(window.__LQD_TEST_RESULTS__);
+  else console.log(window.__LQD_TEST_RESULTS__);
+})();
+</script>
+</body>
+</html>

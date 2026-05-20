@@ -170,6 +170,31 @@ function bestAttack(cards) {
   return score.valid ? score : null;
 }
 
+function scoreComboForTests(cards, options={}) {
+  const previousState = state;
+  state = {
+    enemy: { hp: options.enemyHp ?? 99, weakness: options.weakness ?? null, finalBoss: !!options.finalBoss },
+    equipment: {
+      weapon: options.weapon || { mode:null, bonus:0, damageBonus:0 },
+      item: options.item || { damageBonus:0 }
+    }
+  };
+  try {
+    return scoreCombo(cards);
+  } finally {
+    state = previousState;
+  }
+}
+
+window.LittleQuestDeckScoring = {
+  scoreCombo: scoreComboForTests,
+  matchChunkScore,
+  isMatchCombo,
+  isSequenceCombo,
+  isFlushCombo,
+  traitInfo
+};
+
 function enemyAttack(reason='', multiplier=1, extraBlock=0) {
   if (state.gameOver) return;
   const blocked = (state.equipment.armor?.reduction || 0) + extraBlock;
