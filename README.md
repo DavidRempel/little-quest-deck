@@ -4,6 +4,12 @@ Tiny browser card-battler prototype for quick playtesting.
 
 Hosted via Cloudflare Workers static assets.
 
+Development notes:
+
+- Repo instructions for Codex/agents: `AGENTS.md`
+- Current staged roadmap: `ROADMAP.md`
+- Playable app: `public/index.html`
+
 Local preview:
 
 ```bash
