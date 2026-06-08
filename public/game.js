@@ -1,4 +1,4 @@
-const buildVersion = 'v4.20-final-boss-curse';
+const buildVersion = 'v4.21-clear-selection';
 const startHandSize = 5;
 const maxHandSize = 7;
 const finalEncounter = 16;
@@ -223,7 +223,6 @@ function itemDescription(item) {
   if (item.reduction) bits.push(`Block ${item.reduction}`);
   if (item.damageBonus) bits.push(`All attacks +${item.damageBonus}`);
   if (item.hpBonus) bits.push(`Max HP +${item.hpBonus}`);
-  if (item.runBonus) bits.push(`Run chance +${Math.round(item.runBonus * 100)}%`);
   if (item.discardBlock) bits.push(`Discard hit block +${item.discardBlock}`);
   if (item.goldBonus) bits.push(`Gold drops +${item.goldBonus}`);
   if (item.healAfterBoss) bits.push(`Heal ${item.healAfterBoss} after bosses`);
@@ -244,7 +243,7 @@ function makeEquipmentPool(source='monster') {
     { slot:'weapon', icon:'🔱', name:'Flush Trident', mode:'flush', bonus:weaponBonus, value:7 },
     { slot:'weapon', icon:'✨', name:'Combo Wand', mode:null, bonus:0, damageBonus:itemDamage, value:9 },
     { slot:'armor', icon:'🛡️', name:'Patchwork Armor', reduction:armorBonus, value:7 },
-    { slot:'armor', icon:'🥾', name:'Running Boots', reduction:armorBonus, runBonus:0.15, value:8 },
+    { slot:'armor', icon:'🥾', name:'Quick Boots', reduction:armorBonus, discardBlock:1, value:8 },
     { slot:'armor', icon:'🧥', name:'Padded Coat', reduction:armorBonus, hpBonus:2 + scale, value:8 },
     { slot:'armor', icon:'🪶', name:'Feather Cloak', reduction:Math.max(1, armorBonus - 1), discardBlock:1, value:8 },
     { slot:'item', icon:'❤️', name:'Heart Charm', hpBonus:4 + scale, value:8 },
@@ -399,22 +398,6 @@ function attack() {
   render();
 }
 
-function runAway() {
-  if (state.gameOver) return;
-  if (state.enemy.boss) { log(`${state.enemy.name} blocks the path. You cannot run from bosses.`); render(); return; }
-  if (Math.random() < Math.min(0.85, 0.5 + (state.equipment.armor?.runBonus || 0))) {
-    const oldName = state.enemy.name;
-    state.defeated++;
-    advanceEnemy();
-    state.selected = [];
-    log(`You run from ${oldName}. A new enemy appears: ${state.enemy.name}.`);
-  } else {
-    log(`You try to run from ${state.enemy.name}, but stumble. Classic forest nonsense.`);
-    enemyAttack('a failed run');
-  }
-  render();
-}
-
 function discardSelected() {
   if (state.gameOver) return;
   const cards = selectedCards();
@@ -428,6 +411,12 @@ function discardSelected() {
   sortHand();
   log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.`);
   enemyAttack('discarding cards', 0.5, state.equipment.armor?.discardBlock || 0);
+  render();
+}
+
+function clearSelection() {
+  if (state.gameOver || !state.selected.length) return;
+  state.selected = [];
   render();
 }
 
@@ -504,12 +493,12 @@ function render(){
   attackBtn.classList.toggle('attack-ready', !!best && best.total >= state.enemy.hp && !state.gameOver);
   attackBtn.classList.toggle('attack-short', !!best && best.total < state.enemy.hp && !state.gameOver);
   document.getElementById('discardBtn').disabled=state.gameOver;
-  document.getElementById('runBtn').disabled=state.gameOver || state.enemy.boss;
+  document.getElementById('clearSelectionBtn').disabled=state.gameOver || !state.selected.length;
 }
 
 document.getElementById('attackBtn').onclick=attack;
 document.getElementById('discardBtn').onclick=discardSelected;
-document.getElementById('runBtn').onclick=runAway;
+document.getElementById('clearSelectionBtn').onclick=clearSelection;
 document.getElementById('sortNumberBtn').onclick=()=>setSortMode('number');
 document.getElementById('sortColorBtn').onclick=()=>setSortMode('color');
 document.getElementById('restartBtn').onclick=start;

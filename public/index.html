@@ -13,7 +13,7 @@
       <h1>Little Quest Deck</h1>
       <details class="about-box">
         <summary>About this build</summary>
-        <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Attack with selected cards, Discard X → Draw X to cycle cards, or Run from regular enemies. Cycling and failed runs let the enemy hit you for HP. Attacks refill your hand back toward your current hand size. <strong id="buildLabel"></strong></div>
+        <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Attack with selected cards, Discard X → Draw X to cycle cards, or clear your selection without spending a turn. Cycling lets the enemy hit you for HP. Attacks refill your hand back toward your current hand size. <strong id="buildLabel"></strong></div>
       </details>
     </div>
     <div class="stats">
@@ -39,7 +39,7 @@
       <div class="actions combat-actions">
         <button class="action-btn" id="attackBtn">Attack <small>auto-best combo</small></button>
         <button class="action-btn" id="discardBtn">Discard <small>selected cards; enemy hits</small></button>
-        <button class="action-btn" id="runBtn">Run <small>50% escape; no bosses</small></button>
+        <button class="action-btn" id="clearSelectionBtn">Clear Selection <small>deselect cards</small></button>
       </div>
       <div class="score-preview" id="scorePreview"></div>
       <div class="actions" style="grid-template-columns: 1fr;">
@@ -82,7 +82,7 @@
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
         <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
         <li><strong>Discard</strong> replaces selected cards. The enemy hits afterward, but only at half strength rounded down.</li>
-        <li><strong>Run</strong> has a 50% chance to replace a regular enemy. If it fails, the enemy hits you. Bosses cannot be run from.</li>
+        <li><strong>Clear Selection</strong> deselects your current cards without spending a turn.</li>
         <li>After an attack, played cards are replaced up to your current hand size.</li>
         <li>Equipment slots start with basic no-bonus gear. New gear can be equipped or sold for gold. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
