@@ -42,8 +42,9 @@
         <button class="action-btn" id="clearSelectionBtn">Clear Selection <small>deselect cards</small></button>
       </div>
       <div class="score-preview" id="scorePreview"></div>
-      <div class="actions" style="grid-template-columns: 1fr;">
-        <button id="restartBtn">Restart Run</button>
+      <div class="actions run-actions">
+        <button id="restartBtn">Restart Same Seed</button>
+        <button id="newSeedBtn">Start New Seed</button>
       </div>
     </main>
 
@@ -67,6 +68,8 @@
     <section class="panel info-side">
       <h2>Latest Reward</h2>
       <div class="reward-banner" id="rewardBanner">No rewards yet.</div>
+      <h2>Run Summary</h2>
+      <div class="run-summary" id="runSummary"></div>
     </section>
 
     <aside class="panel rules-row">
@@ -86,6 +89,7 @@
         <li><strong>Clear Selection</strong> deselects your current cards without spending a turn.</li>
         <li>After a non-lethal attack, draw at most 2 cards. Defeating an enemy fully refills your hand for the next encounter.</li>
         <li><strong>Clean Victory:</strong> defeat with 0-3 excess damage to gain +2 gold. Boss Clean Victories also heal 1 HP.</li>
+        <li>Each run has a seed in the page URL. Restart the same seed to replay identical cards, enemies, and rewards, or start a new seed for a fresh run.</li>
         <li>Equipment slots start with basic no-bonus gear. New gear can be equipped or sold for gold. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>

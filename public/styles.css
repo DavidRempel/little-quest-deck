@@ -76,6 +76,11 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .card.purple { background: linear-gradient(160deg, #eee0f9, #b891d7); }
 .score-preview { margin-top: 10px; border: 1px solid var(--border); border-radius: 14px; padding: 10px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.35; }
 .score-preview strong { color: var(--text); }
+.forecast { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+.forecast-item { border:1px solid var(--border); background:rgba(255,255,255,0.04); border-radius:8px; padding:8px; }
+.forecast-item span { display:block; color:var(--muted); font-size:0.78rem; text-transform:uppercase; font-weight:800; }
+.forecast-item strong { display:block; margin-top:2px; }
+.clean-forecast { color:var(--gold); font-weight:900; margin-top:9px; }
 .score-big { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
 .score-number { font-size:2rem; font-weight:950; color:var(--gold); line-height:1; }
 .score-formula { display:grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap:8px; margin-top:8px; }
@@ -89,6 +94,13 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .combat-actions #attackBtn.attack-short { background: #67302b; border-color: var(--red); }
 .action-btn small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
 .reward-banner { margin: 12px 0; border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; background: rgba(0,0,0,0.12); color: var(--muted); font-weight: 750; }
+.run-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.summary-stat { border:1px solid var(--border); border-radius:8px; padding:8px; background:rgba(0,0,0,0.14); color:var(--muted); }
+.summary-stat strong { display:block; color:var(--text); font-size:1.05rem; }
+.summary-seed { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.summary-seed code { color:var(--gold); font-weight:900; overflow-wrap:anywhere; }
+.summary-seed button { padding:7px 10px; flex:0 0 auto; }
+.run-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .equipment { display:grid; gap:8px; margin-bottom:14px; }
 .slot { border:1px solid var(--border); border-radius:12px; padding:9px 10px; background:rgba(0,0,0,0.14); color:var(--muted); }
 .slot strong { color:var(--text); }
@@ -126,4 +138,5 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .log { height: 220px; overflow: auto; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 12px; color: var(--muted); line-height: 1.45; font-size: 0.92rem; }
 .log p { margin: 0 0 8px; }
 .game-over { font-size: 1.2rem; color: var(--gold); font-weight: 900; }
-@media (max-width: 900px) { .grid, .info-grid { grid-template-columns: 1fr; } .header { align-items:flex-start; flex-direction:column; } .stats { justify-content: flex-start; } .actions, .score-formula { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid, .info-grid { grid-template-columns: 1fr; } .info-main, .info-side, .rules-row { grid-column:1; } .header { align-items:flex-start; flex-direction:column; } .stats { justify-content: flex-start; } .actions:not(.run-actions), .score-formula { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .forecast, .run-summary, .run-actions { grid-template-columns:1fr; } .summary-seed { grid-column:1; align-items:flex-start; flex-direction:column; } }

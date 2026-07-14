@@ -1,4 +1,4 @@
-const buildVersion = 'v4.22-temper-refill-clean-victory';
+const buildVersion = 'v4.23-seeded-playtest';
 const startHandSize = 5;
 const maxHandSize = 7;
 const maxTemper = 3;
@@ -15,10 +15,16 @@ const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon
 const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
 const finalBossName = 'The Crown-Eating Dragon';
 let state;
+let random = Math.random;
 
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
-function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-function sample(a) { return a[Math.floor(Math.random()*a.length)]; }
+function hashSeed(seed) { let h=2166136261; for (const ch of seed) { h^=ch.charCodeAt(0); h=Math.imul(h,16777619); } return h>>>0; }
+function seededRandom(seed) { let a=hashSeed(seed); return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function makeSeed() { return Math.random().toString(36).slice(2,8).toUpperCase(); }
+function seedFromUrl() { return new URLSearchParams(location.search).get('seed') || makeSeed(); }
+function setSeedUrl(seed) { const url=new URL(location.href); url.searchParams.set('seed',seed); history.replaceState(null,'',url); }
+function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function sample(a) { return a[Math.floor(random()*a.length)]; }
 function makeCard(n, color) { return { n, color, id: uid() }; }
 function makeDeck() { const deck=[]; for (let n=1;n<=8;n++) colors.forEach(c => deck.push(makeCard(n, c))); return shuffle(deck); }
 function log(msg) { state.log.unshift(`<p>${msg}</p>`); renderLog(); }
@@ -28,7 +34,7 @@ function newEnemy() {
   const finalBoss = !state.finalDefeated && level === finalEncounter;
   const boss = finalBoss || (level < finalEncounter && level % 5 === 0) || (state.finalDefeated && level % 5 === 0);
   const weakness = sample(weaknessTypes);
-  const hp = finalBoss ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(Math.random() * 3);
+  const hp = finalBoss ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2.0) + Math.floor(random() * 3);
   return {
     name: finalBoss ? finalBossName : boss ? sample(bossNames) : sample(enemyNames),
     boss,
@@ -41,7 +47,10 @@ function newEnemy() {
   };
 }
 
-function start() {
+function start(seed=seedFromUrl()) {
+  seed=seed.trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,24) || makeSeed();
+  setSeedUrl(seed);
+  random=seededRandom(seed);
   document.title = `Little Quest Deck ${buildVersion}`;
   document.getElementById('buildLabel').textContent = buildVersion;
   document.getElementById('buildStat').textContent = buildVersion;
@@ -69,7 +78,9 @@ function start() {
     selected: [],
     enemy: null,
     log: [],
-    gameOver: false
+    gameOver: false,
+    seed,
+    stats: { attacks:0, partialAttacks:0, discards:0, cleanVictories:0, biggestCombo:0, damageTaken:0 }
   };
   advanceEnemy();
   log('Back to basics: one enemy, one hand, one decision loop.');
@@ -217,14 +228,16 @@ function drawUpTo(limit) {
 }
 
 function cleanVictoryBonus(overkill, boss) {
-  if (overkill < 0 || overkill > 3) return;
+  if (overkill < 0 || overkill > 3) return false;
   state.gold += cleanVictoryGold;
-  setReward(`Clean Victory: +${cleanVictoryGold} gold for winning with ${overkill} excess damage. You have ${state.gold} gold.`);
+  state.stats.cleanVictories++;
+  setReward(`Clean Victory: +${cleanVictoryGold} gold for winning with ${overkill} excess damage.`, true);
   if (boss) {
     const before = state.hp;
     state.hp = Math.min(state.maxHp, state.hp + 1);
     if (state.hp > before) log('Boss Clean Victory heals 1 HP.');
   }
+  return true;
 }
 
 function enemyAttack(reason='', multiplier=1, extraBlock=0) {
@@ -234,6 +247,7 @@ function enemyAttack(reason='', multiplier=1, extraBlock=0) {
   const rawDamage = Math.floor(attackPower * multiplier);
   const damage = Math.max(0, rawDamage - blocked);
   state.hp -= damage;
+  state.stats.damageTaken += damage;
   if (damage > 0) state.playerHit = true;
   const halfText = multiplier < 1 ? ' half-strength' : '';
   log(`${state.enemy.name} hits you for ${damage} HP${halfText}${state.enemy.temper ? ` (Attack ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
@@ -244,8 +258,8 @@ function enemyAttack(reason='', multiplier=1, extraBlock=0) {
   }
 }
 
-function setReward(text) {
-  state.lastReward = text;
+function setReward(text, append=false) {
+  state.lastReward = append && state.lastReward ? `${state.lastReward} ${text}` : text;
   log(`<span class="game-over">${text}</span>`);
 }
 
@@ -313,9 +327,9 @@ function applyEquipmentItem(item) {
   setReward(`Equipped ${itemModalDescription(item)}.`);
 }
 
-function addGold(amount, reason) {
+function addGold(amount, reason, append=false) {
   state.gold += amount;
-  setReward(`${reason}: +${amount} gold. You have ${state.gold} gold.`);
+  setReward(`${reason}: +${amount} gold. You have ${state.gold} gold.`, append);
 }
 
 function openRewardChoice(item) {
@@ -389,6 +403,7 @@ function attack() {
   if (!best) { log('No valid combo in those cards. Try a Match, Sequence, Flush, or stacked combo like Sequence + Flush.'); render(); return; }
 
   const playedCount = cards.length;
+  state.stats.attacks++;
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
@@ -396,6 +411,7 @@ function attack() {
 
   const previousHp = state.enemy.hp;
   const attackDamage = best.total;
+  state.stats.biggestCombo = Math.max(state.stats.biggestCombo, attackDamage);
   state.enemy.hp = Math.max(0, state.enemy.hp - attackDamage);
   if (attackDamage > 0) state.monsterHit = true;
 
@@ -403,6 +419,7 @@ function attack() {
     const overkill = attackDamage - previousHp;
     log(`Success: ${comboName(best.traits)} deals ${attackDamage} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}.`);
     const defeatedBoss = state.enemy.boss;
+    state.lastReward = '';
     cleanVictoryBonus(overkill, defeatedBoss);
     state.defeated++;
     fillHand();
@@ -411,23 +428,24 @@ function attack() {
     if (state.defeated === finalEncounter && defeatedBoss) {
       state.finalDefeated = true;
       state.gold += 40;
-      setReward('Final boss defeated: you win the Forest Crown and 40 gold.');
+      setReward('Final boss defeated: you win the Forest Crown and 40 gold.', true);
       advanceEnemy();
       log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
       showVictoryModal();
     } else if (defeatedBoss) {
-      addGold(12 + Math.floor(state.defeated / 5) * 3 + (state.equipment.item?.goldBonus || 0), 'Boss purse');
+      addGold(12 + Math.floor(state.defeated / 5) * 3 + (state.equipment.item?.goldBonus || 0), 'Boss purse', true);
       if (state.equipment.item?.healAfterBoss) state.hp = Math.min(state.maxHp, state.hp + state.equipment.item.healAfterBoss);
       advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
       openShop();
     } else {
-      addGold(2 + Math.floor(Math.random() * 3) + (state.equipment.item?.goldBonus || 0), 'Monster loot');
-      if (Math.random() < 0.30) { const item = makeRewardItem('monster'); if (item) openRewardChoice(item); }
+      addGold(2 + Math.floor(random() * 3) + (state.equipment.item?.goldBonus || 0), 'Monster loot', true);
+      if (random() < 0.30) { const item = makeRewardItem('monster'); if (item) openRewardChoice(item); }
       advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
   } else {
+    state.stats.partialAttacks++;
     const drawn = drawUpTo(Math.min(partialAttackDrawLimit, effectiveHandSize() - state.hand.length));
     log(`Hit: ${comboName(best.traits)} deals ${attackDamage}. ${state.enemy.name} drops from ${previousHp}/${state.enemy.maxHp} to ${state.enemy.hp}/${state.enemy.maxHp} HP. Played ${playedCount}, drew ${drawn}.`);
     raiseTemper('a partial attack');
@@ -441,6 +459,7 @@ function discardSelected() {
   const cards = selectedCards();
   if (!cards.length) { log('Choose cards to discard first.'); return; }
   const count = cards.length;
+  state.stats.discards++;
   cards.forEach(c => state.discard.push(c));
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
@@ -489,8 +508,24 @@ function renderPreview() {
   const best = bestAttack(cards);
   if (!best) { el.innerHTML=`<div class="score-big"><span class="score-number">${cards.length}</span><strong>selected card${cards.length>1?'s':''}</strong></div><div>No valid combo yet.</div>`; return; }
   const leaves = Math.max(0, state.enemy.hp - best.total);
+  const lethal = best.total >= state.enemy.hp;
+  const kept = state.hand.length - cards.length;
+  const drawn = lethal ? Math.max(0,effectiveHandSize()-kept) : Math.min(partialAttackDrawLimit,Math.max(0,effectiveHandSize()-kept));
+  const nextTemper = Math.min(maxTemper,(state.enemy.temper||0)+1);
+  const retaliation = Math.max(0,state.enemy.damage+nextTemper-(state.equipment.armor?.reduction||0));
+  const clean = lethal && best.margin >= 0 && best.margin <= 3;
   const verdict = `${comboName(best.traits)}: <strong>${best.total}</strong> vs ${state.enemy.hp}/${state.enemy.maxHp} HP — ${best.margin >= 0 ? `defeats by ${best.margin}` : `leaves ${leaves} HP`}.`;
-  el.innerHTML=`<div class="score-big"><span class="score-number">${best.total}</span><strong>${comboName(best.traits)}</strong></div><div>${verdict}</div><div style="margin-top:8px;"><small>${best.formula}</small></div>`;
+  el.innerHTML=`<div class="score-big"><span class="score-number">${best.total}</span><strong>${comboName(best.traits)}</strong></div><div>${verdict}</div><div class="forecast"><div class="forecast-item"><span>Cards after attack</span><strong>${kept} kept, ${drawn} drawn</strong></div><div class="forecast-item"><span>Enemy response</span><strong>${lethal?'Defeated':`${retaliation} damage at Temper ${nextTemper}`}</strong></div></div>${clean?`<div class="clean-forecast">Clean Victory: +${cleanVictoryGold} gold${state.enemy.boss?' and heal 1 HP':''}</div>`:''}<div style="margin-top:8px;"><small>${best.formula}</small></div>`;
+}
+
+function copySeed() {
+  const url=location.href;
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(()=>{ log('Seed link copied.'); render(); });
+  else prompt('Copy this seeded run link:',url);
+}
+function renderRunSummary(){
+  const s=state.stats;
+  document.getElementById('runSummary').innerHTML=`<div class="summary-stat"><strong>${state.defeated}</strong>defeated</div><div class="summary-stat"><strong>${state.hp}/${state.maxHp}</strong>HP left</div><div class="summary-stat"><strong>${s.attacks}</strong>attacks (${s.partialAttacks} partial)</div><div class="summary-stat"><strong>${s.discards}</strong>discards</div><div class="summary-stat"><strong>${s.cleanVictories}</strong>Clean Victories</div><div class="summary-stat"><strong>${s.biggestCombo}</strong>biggest combo</div><div class="summary-stat"><strong>${s.damageTaken}</strong>damage taken</div><div class="summary-stat"><strong>${state.gold}</strong>gold</div><div class="summary-stat summary-seed"><div>Seed <code>${state.seed}</code></div><button onclick="copySeed()">Copy Link</button></div>`;
 }
 
 function renderLog(){ document.getElementById('log').innerHTML=state.log.join(''); }
@@ -524,7 +559,7 @@ function render(){
   document.getElementById('deckCount').textContent=state.deck.length;
   document.getElementById('discardCount').textContent=state.discard.length;
   document.getElementById('goldCount').textContent=state.gold;
-  renderEnemy(); renderHand(); renderPreview(); renderLog(); renderEquipment(); renderDeckList();
+  renderEnemy(); renderHand(); renderPreview(); renderLog(); renderEquipment(); renderDeckList(); renderRunSummary();
   if (state.playerHit) { pulseElement('playerHp', 'hp-hit'); state.playerHit = false; }
   if (state.monsterHit) { pulseElement('monsterHp', 'hp-shake'); state.monsterHit = false; }
   const attackBtn = document.getElementById('attackBtn');
@@ -543,5 +578,6 @@ document.getElementById('discardBtn').onclick=discardSelected;
 document.getElementById('clearSelectionBtn').onclick=clearSelection;
 document.getElementById('sortNumberBtn').onclick=()=>setSortMode('number');
 document.getElementById('sortColorBtn').onclick=()=>setSortMode('color');
-document.getElementById('restartBtn').onclick=start;
-start();
+document.getElementById('restartBtn').onclick=()=>start(state.seed);
+document.getElementById('newSeedBtn').onclick=()=>start(makeSeed());
+start(seedFromUrl());
