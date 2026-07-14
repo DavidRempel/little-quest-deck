@@ -13,7 +13,7 @@
       <h1>Little Quest Deck</h1>
       <details class="about-box">
         <summary>About this build</summary>
-        <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Attack with selected cards, Discard X → Draw X to cycle cards, or clear your selection without spending a turn. Cycling lets the enemy hit you for HP. Attacks refill your hand back toward your current hand size. <strong id="buildLabel"></strong></div>
+        <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Attack with selected cards, Discard X → Draw X to cycle cards, or clear your selection without spending a turn. Partial attacks and discards raise enemy Temper before retaliation. Defeating an enemy fully refills your hand. <strong id="buildLabel"></strong></div>
       </details>
     </div>
     <div class="stats">
@@ -79,11 +79,13 @@
         <li><strong>Combo bonuses:</strong> Match ×1.25, Sequence ×1.25, Flush ×1.5. A straight flush gets both Sequence and Flush. Match hands score in chunks, so two pair = pair + pair and full house = three-kind + pair.</li>
         <li><strong>Valid combos:</strong> Match = all selected cards are in matching-number groups, including pair, two pair, three/four of a kind, or full house. Sequence = 3+ consecutive numbers. Flush = 3+ same colour.</li>
         <li>Enemy weakness is one broad family: Match, Sequence, or Flush. Combo bonuses stack; a straight flush gets both Sequence and Flush.</li>
-        <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, then they hit back.</li>
+        <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, raises Temper by 1, then they hit back.</li>
+        <li><strong>Temper:</strong> each enemy starts at 0 Temper. Partial attacks and discards raise Temper before retaliation, up to 3. Each Temper adds +1 to that enemy's attack. Temper resets when a new enemy appears.</li>
         <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, win prize on defeat, then you can keep playing endless mode.</li>
-        <li><strong>Discard</strong> replaces selected cards. The enemy hits afterward, but only at half strength rounded down.</li>
+        <li><strong>Discard</strong> replaces selected cards. The enemy gains Temper, then hits afterward at half strength rounded down.</li>
         <li><strong>Clear Selection</strong> deselects your current cards without spending a turn.</li>
-        <li>After an attack, played cards are replaced up to your current hand size.</li>
+        <li>After a non-lethal attack, draw at most 2 cards. Defeating an enemy fully refills your hand for the next encounter.</li>
+        <li><strong>Clean Victory:</strong> defeat with 0-3 excess damage to gain +2 gold. Boss Clean Victories also heal 1 HP.</li>
         <li>Equipment slots start with basic no-bonus gear. New gear can be equipped or sold for gold. Weapon adds attack damage, Armor reduces damage, and Item gives utility bonuses.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>

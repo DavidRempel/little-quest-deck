@@ -61,6 +61,11 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .enemy .name { font-size: 1.5rem; font-weight: 950; }
 .enemy .line { color: var(--muted); }
 .enemy strong { color: var(--text); }
+.temper-row { display:grid; grid-template-columns: auto auto 1fr; gap:8px; align-items:center; color:var(--muted); }
+.temper-row strong { color:var(--gold); }
+.temper-pips { display:flex; gap:5px; align-items:center; }
+.temper-pip { width:14px; height:14px; border-radius:999px; border:1px solid var(--border); background:#1f1b18; }
+.temper-pip.hot { background:var(--red); border-color:var(--red); box-shadow:0 0 0 3px rgba(217,107,95,0.14); }
 .hand { display: flex; flex-wrap: wrap; gap: 8px; min-height: 136px; }
 .card { width: 78px; height: 116px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 9px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; position: relative; overflow: hidden; }
 .card.selected { outline: 4px solid var(--gold); transform: translateY(-5px); }

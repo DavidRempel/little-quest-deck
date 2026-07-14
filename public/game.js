@@ -1,6 +1,9 @@
-const buildVersion = 'v4.21-clear-selection';
+const buildVersion = 'v4.22-temper-refill-clean-victory';
 const startHandSize = 5;
 const maxHandSize = 7;
+const maxTemper = 3;
+const partialAttackDrawLimit = 2;
+const cleanVictoryGold = 2;
 const finalEncounter = 16;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'sequence', 'flush'];
@@ -33,7 +36,8 @@ function newEnemy() {
     weakness,
     hp,
     maxHp: hp,
-    damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5)
+    damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5),
+    temper: 0
   };
 }
 
@@ -195,15 +199,44 @@ window.LittleQuestDeckScoring = {
   traitInfo
 };
 
+function raiseTemper(reason) {
+  if (!state.enemy || state.enemy.temper >= maxTemper) return false;
+  state.enemy.temper++;
+  log(`${state.enemy.name}'s Temper rises to ${state.enemy.temper}/${maxTemper}${reason ? ` after ${reason}` : ''}.`);
+  return true;
+}
+
+function drawUpTo(limit) {
+  let drawn = 0;
+  for (let i = 0; i < limit; i++) {
+    if (!drawOne()) break;
+    drawn++;
+  }
+  sortHand();
+  return drawn;
+}
+
+function cleanVictoryBonus(overkill, boss) {
+  if (overkill < 0 || overkill > 3) return;
+  state.gold += cleanVictoryGold;
+  setReward(`Clean Victory: +${cleanVictoryGold} gold for winning with ${overkill} excess damage. You have ${state.gold} gold.`);
+  if (boss) {
+    const before = state.hp;
+    state.hp = Math.min(state.maxHp, state.hp + 1);
+    if (state.hp > before) log('Boss Clean Victory heals 1 HP.');
+  }
+}
+
 function enemyAttack(reason='', multiplier=1, extraBlock=0) {
   if (state.gameOver) return;
   const blocked = (state.equipment.armor?.reduction || 0) + extraBlock;
-  const rawDamage = Math.floor(state.enemy.damage * multiplier);
+  const attackPower = state.enemy.damage + (state.enemy.temper || 0);
+  const rawDamage = Math.floor(attackPower * multiplier);
   const damage = Math.max(0, rawDamage - blocked);
   state.hp -= damage;
   if (damage > 0) state.playerHit = true;
   const halfText = multiplier < 1 ? ' half-strength' : '';
-  log(`${state.enemy.name} hits you for ${damage} HP${halfText}${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
+  log(`${state.enemy.name} hits you for ${damage} HP${halfText}${state.enemy.temper ? ` (Attack ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` (${blocked} blocked by armor)` : ''}${reason ? ` after ${reason}` : ''}.`);
   if (state.hp <= 0) {
     state.hp = 0;
     state.gameOver = true;
@@ -360,8 +393,6 @@ function attack() {
   state.hand = state.hand.filter(c => !state.selected.includes(c.id));
   state.selected = [];
   const beforeDraw = state.hand.length;
-  fillHand();
-  let drawn = state.hand.length - beforeDraw;
 
   const previousHp = state.enemy.hp;
   const attackDamage = best.total;
@@ -369,9 +400,14 @@ function attack() {
   if (attackDamage > 0) state.monsterHit = true;
 
   if (state.enemy.hp <= 0) {
-    log(`Success: ${comboName(best.traits)} deals ${attackDamage} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}, drew ${drawn}.`);
+    const overkill = attackDamage - previousHp;
+    log(`Success: ${comboName(best.traits)} deals ${attackDamage} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}.`);
     const defeatedBoss = state.enemy.boss;
+    cleanVictoryBonus(overkill, defeatedBoss);
     state.defeated++;
+    fillHand();
+    const drawn = state.hand.length - beforeDraw;
+    log(`Victory refill draws ${drawn} card${drawn === 1 ? '' : 's'} for the next encounter.`);
     if (state.defeated === finalEncounter && defeatedBoss) {
       state.finalDefeated = true;
       state.gold += 40;
@@ -392,7 +428,9 @@ function attack() {
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
   } else {
+    const drawn = drawUpTo(Math.min(partialAttackDrawLimit, effectiveHandSize() - state.hand.length));
     log(`Hit: ${comboName(best.traits)} deals ${attackDamage}. ${state.enemy.name} drops from ${previousHp}/${state.enemy.maxHp} to ${state.enemy.hp}/${state.enemy.maxHp} HP. Played ${playedCount}, drew ${drawn}.`);
+    raiseTemper('a partial attack');
     enemyAttack('a partial attack');
   }
   render();
@@ -410,6 +448,7 @@ function discardSelected() {
   for (let i = 0; i < count + (state.equipment.item?.extraDiscardDraw || 0); i++) if (drawOne()) drawn++;
   sortHand();
   log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.`);
+  raiseTemper('discarding');
   enemyAttack('discarding cards', 0.5, state.equipment.armor?.discardBlock || 0);
   render();
 }
@@ -422,13 +461,16 @@ function clearSelection() {
 
 function renderEnemy() {
   const blocked = state.equipment.armor?.reduction || 0;
-  const damage = Math.max(0, state.enemy.damage - blocked);
+  const temperedAttack = state.enemy.damage + (state.enemy.temper || 0);
+  const damage = Math.max(0, temperedAttack - blocked);
+  const nextTemper = Math.min(maxTemper, (state.enemy.temper || 0) + 1);
+  const nextDamage = Math.max(0, state.enemy.damage + nextTemper - blocked);
   const bossProgress = ((state.defeated % 5) + 1);
   const dots = [1,2,3,4,5].map(i=>`<span class="boss-dot ${i < bossProgress ? 'done' : ''} ${i === 5 ? 'boss' : ''}"></span>`).join('');
   const finalProgress = state.finalDefeated ? 100 : Math.min(100, Math.round(((state.defeated + 1) / finalEncounter) * 100));
   const pastFinal = Math.max(0, state.defeated - finalEncounter);
   const toFinal = state.finalDefeated ? `Forest Crown won — endless mode. Past final boss: ${pastFinal} turn${pastFinal === 1 ? '' : 's'}.` : `${Math.max(0, finalEncounter - state.defeated)} encounter${finalEncounter - state.defeated === 1 ? '' : 's'} to final boss.`;
-  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="line">Attack: <strong>${damage} HP</strong>${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">${state.enemy.finalBoss ? 'Final boss: combos score as one card smaller. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
+  document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="temper-row"><span>Temper</span><strong>${state.enemy.temper || 0}/${maxTemper}</strong><div class="temper-pips">${[1,2,3].map(i=>`<span class="temper-pip ${i <= (state.enemy.temper || 0) ? 'hot' : ''}"></span>`).join('')}</div></div><div class="line">Attack: <strong>${damage} HP</strong>${state.enemy.temper ? ` (base ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">Next non-lethal action raises Temper first, then this monster hits for <strong>${nextDamage} HP</strong>${blocked ? ' after armor' : ''}.</div><div class="line">${state.enemy.finalBoss ? 'Final boss: combos score as one card smaller. Win the run on defeat.' : state.enemy.boss ? 'Boss fight: shop after defeat.' : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
 }
 function renderHand() {
   const el=document.getElementById('hand');
