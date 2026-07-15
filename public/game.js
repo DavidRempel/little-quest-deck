@@ -1,8 +1,7 @@
-const buildVersion = 'v4.23-seeded-playtest';
+const buildVersion = 'v4.24-temper-full-refill';
 const startHandSize = 5;
 const maxHandSize = 7;
 const maxTemper = 3;
-const partialAttackDrawLimit = 2;
 const cleanVictoryGold = 2;
 const finalEncounter = 16;
 const colors = ['red', 'green', 'blue', 'purple'];
@@ -446,7 +445,7 @@ function attack() {
     }
   } else {
     state.stats.partialAttacks++;
-    const drawn = drawUpTo(Math.min(partialAttackDrawLimit, effectiveHandSize() - state.hand.length));
+    const drawn = drawUpTo(playedCount);
     log(`Hit: ${comboName(best.traits)} deals ${attackDamage}. ${state.enemy.name} drops from ${previousHp}/${state.enemy.maxHp} to ${state.enemy.hp}/${state.enemy.maxHp} HP. Played ${playedCount}, drew ${drawn}.`);
     raiseTemper('a partial attack');
     enemyAttack('a partial attack');
@@ -510,7 +509,7 @@ function renderPreview() {
   const leaves = Math.max(0, state.enemy.hp - best.total);
   const lethal = best.total >= state.enemy.hp;
   const kept = state.hand.length - cards.length;
-  const drawn = lethal ? Math.max(0,effectiveHandSize()-kept) : Math.min(partialAttackDrawLimit,Math.max(0,effectiveHandSize()-kept));
+  const drawn = lethal ? Math.max(0,effectiveHandSize()-kept) : cards.length;
   const nextTemper = Math.min(maxTemper,(state.enemy.temper||0)+1);
   const retaliation = Math.max(0,state.enemy.damage+nextTemper-(state.equipment.armor?.reduction||0));
   const clean = lethal && best.margin >= 0 && best.margin <= 3;
