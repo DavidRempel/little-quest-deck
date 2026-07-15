@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Little Quest Deck Scoring Tests</title>
+<title>Little Quest Deck Rules and State Tests</title>
 <style>
 body { margin: 24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #211b14; background: #f7ebd1; }
 h1 { margin: 0 0 8px; }
@@ -11,50 +11,23 @@ h1 { margin: 0 0 8px; }
 .pass { color: #2f6f35; }
 .fail { color: #9b2f2a; }
 pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; padding: 12px; border-radius: 8px; }
-#game-fixture { display: none; }
 </style>
 </head>
 <body>
-<h1>Little Quest Deck Scoring Tests</h1>
+<h1>Little Quest Deck Rules and State Tests</h1>
 <p id="summary">Running...</p>
 <pre id="results"></pre>
 
-<div id="game-fixture">
-  <strong id="buildLabel"></strong>
-  <strong id="buildStat"></strong>
-  <strong id="hp"></strong>
-  <strong id="encounter"></strong>
-  <strong id="handCount"></strong>
-  <strong id="deckCount"></strong>
-  <strong id="discardCount"></strong>
-  <strong id="goldCount"></strong>
-  <div id="playerHp"><div id="playerHpValue"></div></div>
-  <div id="monsterHp"><div id="monsterHpValue"></div></div>
-  <div id="hand"></div>
-  <button id="sortNumberBtn"></button>
-  <button id="sortColorBtn"></button>
-  <button id="attackBtn"></button>
-  <button id="discardBtn"></button>
-  <button id="clearSelectionBtn"></button>
-  <button id="restartBtn"></button>
-  <button id="newSeedBtn"></button>
-  <div id="scorePreview"></div>
-  <div id="enemy"></div>
-  <div id="equipment"></div>
-  <div id="rewardBanner"></div>
-  <div id="deckList"></div>
-  <div id="log"></div>
-  <div id="modal"><div id="modalCard"></div></div>
-</div>
-
-<script src="game.js"></script>
+<script src="rules.js"></script>
+<script src="game-state.js"></script>
 <script>
 (() => {
-  const api = window.LittleQuestDeckScoring;
+  const Rules = window.LittleQuestDeckRules;
+  const GameState = window.LittleQuestDeckState;
   const output = [];
   const results = [];
-  const card = (n, color='red') => ({ n, color, id: `${n}-${color}-${Math.random()}` });
-  const score = (cards, options) => api.scoreCombo(cards, options);
+  let cardId = 0;
+  const card = (n, color = 'red') => ({ n, color, id: `test-${++cardId}` });
 
   function assertEqual(name, actual, expected) {
     const pass = Object.is(actual, expected);
@@ -66,36 +39,61 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
     assertEqual(name, actual.join(','), expected.join(','));
   }
 
-  assertEqual('pair is a match combo', api.isMatchCombo([card(2, 'red'), card(2, 'blue')]), true);
+  const score = (cards, options) => Rules.scoreCombo(cards, options);
+  assertEqual('pair is a match combo', Rules.isMatchCombo([card(2, 'red'), card(2, 'blue')]), true);
   assertEqual('pair match score', score([card(2, 'red'), card(2, 'blue')]).total, 9);
-
-  assertEqual('1-2-3 is a sequence combo', api.isSequenceCombo([card(1), card(2, 'blue'), card(3, 'green')]), true);
+  assertEqual('1-2-3 is a sequence combo', Rules.isSequenceCombo([card(1), card(2, 'blue'), card(3, 'green')]), true);
   assertEqual('three-card sequence score', score([card(1), card(2, 'blue'), card(3, 'green')]).total, 15);
-
-  assertEqual('three red cards are a flush combo', api.isFlushCombo([card(1), card(4), card(8)]), true);
+  assertEqual('three red cards are a flush combo', Rules.isFlushCombo([card(1), card(4), card(8)]), true);
   assertEqual('three-card flush score', score([card(1), card(4), card(8)]).total, 12);
 
   const straightFlush = [card(1), card(2), card(3)];
-  assertArrayEqual('straight flush stacks sequence and flush', api.traitInfo(straightFlush), ['sequence', 'flush']);
+  assertArrayEqual('straight flush stacks sequence and flush', Rules.traitInfo(straightFlush), ['sequence', 'flush']);
   assertEqual('straight flush stacked score', score(straightFlush).total, 27);
-
   assertEqual('two pair match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(5, 'green'), card(5, 'purple')]).total, 18);
   assertEqual('full house match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(2, 'green'), card(5, 'red'), card(5, 'purple')]).total, 36);
   assertEqual('four-kind earns its rarity premium', score([card(7), card(7, 'blue'), card(7, 'green'), card(7, 'purple')]).total, 63);
-
   assertEqual('weakness bonus applies after base combo score', score([card(2, 'red'), card(2, 'blue')], { weakness: 'match' }).total, 13);
-  assertEqual(
-    'matching weapon, any-weapon, and item bonuses add after combo score',
-    score([card(1), card(2, 'blue'), card(3, 'green')], {
-      weapon: { mode: 'sequence', bonus: 4, damageBonus: 2 },
-      item: { damageBonus: 3 }
-    }).total,
-    24
-  );
-
+  assertEqual('equipment bonuses add after combo score', score([card(1), card(2, 'blue'), card(3, 'green')], { weapon: { mode: 'sequence', bonus: 4, damageBonus: 2 }, item: { damageBonus: 3 } }).total, 24);
   assertEqual('final boss curse reduces sequence scoring count by one', score([card(1), card(2, 'blue'), card(3, 'green')], { finalBoss: true }).total, 5);
-  assertEqual('final boss curse reduces stacked sequence and flush scoring count by one', score(straightFlush, { finalBoss: true }).total, 9);
-  assertEqual('final boss curse reduces one match chunk before scoring', score([card(2, 'red'), card(2, 'blue'), card(2, 'green')], { finalBoss: true }).total, 9);
+  assertEqual('final boss curse reduces stacked scoring count by one', score(straightFlush, { finalBoss: true }).total, 9);
+  assertEqual('final boss curse reduces one match chunk', score([card(2, 'red'), card(2, 'blue'), card(2, 'green')], { finalBoss: true }).total, 9);
+
+  const partial = GameState.createGame('PARTIAL-ATTACK');
+  partial.state.hand = [card(2, 'red'), card(2, 'blue'), card(5), card(6), card(8)];
+  partial.state.deck = [card(1), card(3)];
+  partial.state.selected = partial.state.hand.slice(0, 2).map(item => item.id);
+  partial.state.enemy.hp = 20;
+  partial.state.enemy.maxHp = 20;
+  partial.state.enemy.damage = 1;
+  const partialResult = partial.attack();
+  assertEqual('partial attack replaces every played card', partialResult.drawn, 2);
+  assertEqual('partial attack raises Temper', partial.state.enemy.temper, 1);
+  assertEqual('partial attack retaliates after Temper', partial.state.stats.damageTaken, 2);
+
+  const regroup = GameState.createGame('REGROUP');
+  regroup.state.hand = [card(1), card(2), card(4), card(6), card(8)];
+  regroup.state.deck = [card(3), card(5), card(7), card(8, 'blue')];
+  regroup.state.enemy.damage = 4;
+  regroup.state.selected = [regroup.state.hand[0].id];
+  const firstRegroup = regroup.discardSelected();
+  assertEqual('first Regroup is free of Temper', firstRegroup.freeRegroup, true);
+  assertEqual('first Regroup takes half-strength hit', regroup.state.stats.damageTaken, 2);
+  regroup.state.selected = [regroup.state.hand[0].id];
+  const secondRegroup = regroup.discardSelected();
+  assertEqual('repeat discard is not a free Regroup', secondRegroup.freeRegroup, false);
+  assertEqual('repeat discard raises Temper', regroup.state.enemy.temper, 1);
+
+  const defeat = GameState.createGame('DEFEAT');
+  defeat.state.hp = 1;
+  defeat.state.enemy.damage = 4;
+  defeat.state.hand = [card(1), card(4), card(7), card(2), card(5)];
+  defeat.state.deck = [card(8)];
+  defeat.state.selected = [defeat.state.hand[0].id];
+  const defeatResult = defeat.discardSelected();
+  assertEqual('lethal retaliation reports defeat modal', defeatResult.modal, 'defeat');
+  assertEqual('lethal retaliation marks run over', defeat.state.gameOver, true);
+  assertEqual('normal equipment frequency remains 15%', Rules.config.monsterEquipmentDropChance, 0.15);
 
   const passed = results.filter(Boolean).length;
   const failed = results.length - passed;

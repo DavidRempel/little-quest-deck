@@ -19,11 +19,17 @@ python3 -m http.server 8765
 
 Then open <http://localhost:8765>.
 
-Scoring/combo tests:
+Rules and state-transition tests:
 
 ```bash
 cd public
 python3 -m http.server 8765
 ```
 
-Then open <http://localhost:8765/scoring-tests.html>. The page prints pass/fail results and also exposes `window.__LQD_TEST_RESULTS__` in the browser console.
+Then open <http://localhost:8765/scoring-tests.html>. The page tests scoring, partial-attack refill, Temper, Regroup, defeat state, and reward frequency. It prints pass/fail results and exposes `window.__LQD_TEST_RESULTS__` in the browser console.
+
+Runtime structure:
+
+- `public/rules.js` — pure scoring and tuning constants
+- `public/game-state.js` — seeded state transitions and progression
+- `public/game.js` — DOM events and rendering

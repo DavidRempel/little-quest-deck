@@ -13,9 +13,13 @@ The current app is a static Cloudflare Workers assets site. The playable build l
 5. Keep the runtime deterministic and client-side unless a specific AI/game-service feature is requested.
 
 ## Current Architecture
-- `public/index.html` contains HTML, CSS, and JavaScript.
+- `public/rules.js` contains tuning constants and pure combo/scoring rules.
+- `public/game-state.js` owns seeded randomness, game state, combat, rewards, and progression without DOM access.
+- `public/game.js` owns browser events, modals, and rendering.
+- `public/index.html` and `public/styles.css` contain the page structure and presentation.
+- `public/scoring-tests.html` runs browser-based rules and state-transition regression tests.
 - `wrangler.jsonc` configures Cloudflare static assets deployment.
-- No package manager, build step, or test runner is currently required.
+- No package manager or build step is required.
 
 ## Local Preview
 Run:
@@ -32,25 +36,17 @@ http://localhost:8765
 ```
 
 ## Deployment
-Cloudflare appears to auto-deploy from pushes to `main`.
-
-Do not assume manual `wrangler deploy` is required unless auto-deploy fails or Dave asks for it.
+Follow the workspace standing rule for hobby-site deployment. A requested change normally includes commit, push, deploy, and live verification. Cloudflare's GitHub auto-deploy has been unreliable for this repo, so verify the live build label and use Wrangler when needed.
 
 ## Coding Guidance
 - Do not add frameworks unless the task needs them.
-- If refactoring, first split game state/rules from rendering before changing behavior.
+- Preserve the rules/state/rendering boundaries; do not move DOM access into `rules.js` or `game-state.js`.
 - Keep card/rule constants easy to inspect and tune.
 - Avoid decorative complexity. This is a playtest prototype first.
 - When changing gameplay, update the visible rules text if behavior changes.
 - When changing UI, verify desktop and mobile layout.
 
-## Good First Codex Tasks
-1. Split `public/index.html` into:
-   - `public/index.html`
-   - `public/styles.css`
-   - `public/game.js`
-2. Extract pure-ish rule helpers for combos/scoring into a separate module or clearly marked section.
-3. Add a simple manual playtest checklist.
-4. Add seeded/random debug mode so balance changes can be tested repeatably.
-5. Add deck-editing reward choices, since the current rules mention that they are not implemented yet.
-
+## Good Next Tasks
+1. Add deck-editing reward choices, since the current rules mention that they are not implemented yet.
+2. Add tests alongside any new rule or state transition.
+3. Tune enemy curves only after another family playtest.
