@@ -1,15 +1,20 @@
-const buildVersion = 'v4.24-temper-full-refill';
+const buildVersion = 'v4.25-combo-rebalance';
 const startHandSize = 5;
 const maxHandSize = 7;
 const maxTemper = 3;
 const cleanVictoryGold = 2;
+const monsterEquipmentDropChance = 0.15;
 const finalEncounter = 16;
 const colors = ['red', 'green', 'blue', 'purple'];
 const modes = ['match', 'sequence', 'flush'];
 const weaknessTypes = ['match', 'sequence', 'flush'];
 const weaknessLabel = { match:'Match', sequence:'Sequence', flush:'Flush' };
 const modeLabel = { match:'Match', sequence:'Sequence', flush:'Flush' };
-const traitMult = { match:1.25, sequence:1.25, flush:1.5 };
+const comboScores = {
+  match: { 2:9, 3:27, 4:63 },
+  sequence: { 2:5, 3:15, 4:35, 5:68, 6:120, 7:192 },
+  flush: { 2:4, 3:12, 4:28, 5:55, 6:96, 7:154 }
+};
 const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
 const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
 const finalBossName = 'The Crown-Eating Dragon';
@@ -42,7 +47,8 @@ function newEnemy() {
     hp,
     maxHp: hp,
     damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5),
-    temper: 0
+    temper: 0,
+    freeDiscardUsed: false
   };
 }
 
@@ -116,6 +122,7 @@ function sortHand() {
 function setSortMode(mode) { state.sortMode = mode; sortHand(); render(); }
 function selectedCards() { return state.hand.filter(c => state.selected.includes(c.id)); }
 function rankCounts(cards) { return Object.values(countCards(cards, c => c.n)).sort((a,b)=>b-a); }
+function familyScore(family, count) { return comboScores[family][count] || 0; }
 function matchChunkScore(cards, finalPenalty=false) {
   if (cards.length < 2) return 0;
   const counts = rankCounts(cards);
@@ -124,7 +131,7 @@ function matchChunkScore(cards, finalPenalty=false) {
   counts.forEach(count => {
     let effectiveCount = count;
     if (finalPenalty && !penaltyUsed && effectiveCount > 1) { effectiveCount--; penaltyUsed = true; }
-    if (effectiveCount >= 2) score += Math.floor(effectiveCount * sizeMultiplier(effectiveCount) * traitMult.match);
+    if (effectiveCount >= 2) score += familyScore('match', effectiveCount);
   });
   return score;
 }
@@ -144,17 +151,15 @@ function traitInfo(cards) {
   return traits;
 }
 function isValidMode(cards, mode) { return traitInfo(cards).includes(mode); }
-function sizeMultiplier(count) { return Math.pow(2, Math.max(0, count - 1)); }
 function comboName(traits) { return traits.map(t => weaknessLabel[t]).join(' + '); }
 function scoreCombo(cards) {
   const traits = traitInfo(cards);
   const valid = traits.length > 0;
   const finalPenalty = !!state.enemy?.finalBoss;
   const scoreCount = finalPenalty ? Math.max(1, cards.length - 1) : cards.length;
-  const sizeMult = sizeMultiplier(scoreCount);
   const matchBase = traits.includes('match') ? matchChunkScore(cards, finalPenalty) : 0;
-  const sequenceBase = traits.includes('sequence') ? Math.floor(scoreCount * sizeMult * traitMult.sequence) : 0;
-  const flushBase = traits.includes('flush') ? Math.floor(scoreCount * sizeMult * traitMult.flush) : 0;
+  const sequenceBase = traits.includes('sequence') ? familyScore('sequence', scoreCount) : 0;
+  const flushBase = traits.includes('flush') ? familyScore('flush', scoreCount) : 0;
   const baseBeforeWeakness = matchBase + sequenceBase + flushBase;
   const weaknessMult = valid && traits.includes(state.enemy?.weakness) ? 1.5 : 1;
   const weaponBonus = state.equipment.weapon?.mode && traits.includes(state.equipment.weapon.mode) ? state.equipment.weapon.bonus : 0;
@@ -164,8 +169,8 @@ function scoreCombo(cards) {
   const pieces = [];
   if (matchBase) pieces.push(`match chunks ${matchBase}`);
   if (finalPenalty) pieces.push(`final boss curse: scores as ${scoreCount} card${scoreCount === 1 ? '' : 's'}`);
-  if (sequenceBase) pieces.push(`sequence ${scoreCount} scoring cards ×${sizeMult} ×${traitMult.sequence} = ${sequenceBase}`);
-  if (flushBase) pieces.push(`flush ${scoreCount} scoring cards ×${sizeMult} ×${traitMult.flush} = ${flushBase}`);
+  if (sequenceBase) pieces.push(`sequence ${scoreCount} cards = ${sequenceBase}`);
+  if (flushBase) pieces.push(`flush ${scoreCount} cards = ${flushBase}`);
   if (weaknessMult > 1) pieces.push('×1.5 weakness');
   if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
   if (weaponAnyBonus) pieces.push(`+${weaponAnyBonus} weapon`);
@@ -254,6 +259,7 @@ function enemyAttack(reason='', multiplier=1, extraBlock=0) {
     state.hp = 0;
     state.gameOver = true;
     log('<span class="game-over">Run over. The forest keeps your lunch money.</span>');
+    showDefeatModal();
   }
 }
 
@@ -390,6 +396,10 @@ function buyShopOffer(i) {
 }
 function leaveShop() { hideModal(); render(); }
 function showVictoryModal() { showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the final boss on encounter ${finalEncounter}. Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`); }
+function showDefeatModal() {
+  const s = state.stats;
+  showModal(`<h2>💀 Run Over</h2><p><strong>${state.enemy.name}</strong> knocked you out on encounter ${state.defeated + 1}.</p><p>You defeated ${state.defeated} enemies, made ${s.cleanVictories} Clean Victories, and dealt a best attack of ${s.biggestCombo}.</p><div class="modal-actions"><button onclick="start(state.seed)">Retry Same Seed</button><button onclick="start(makeSeed())">Start New Seed</button></div>`);
+}
 function showModal(html) { const m=document.getElementById('modal'); document.getElementById('modalCard').innerHTML=html; m.classList.add('show'); }
 function hideModal() { document.getElementById('modal').classList.remove('show'); }
 
@@ -439,7 +449,7 @@ function attack() {
       openShop();
     } else {
       addGold(2 + Math.floor(random() * 3) + (state.equipment.item?.goldBonus || 0), 'Monster loot', true);
-      if (random() < 0.30) { const item = makeRewardItem('monster'); if (item) openRewardChoice(item); }
+      if (random() < monsterEquipmentDropChance) { const item = makeRewardItem('monster'); if (item) openRewardChoice(item); }
       advanceEnemy();
       log(`A new enemy appears: ${state.enemy.name}.`);
     }
@@ -465,8 +475,10 @@ function discardSelected() {
   let drawn = 0;
   for (let i = 0; i < count + (state.equipment.item?.extraDiscardDraw || 0); i++) if (drawOne()) drawn++;
   sortHand();
-  log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.`);
-  raiseTemper('discarding');
+  const freeRegroup = !state.enemy.freeDiscardUsed;
+  state.enemy.freeDiscardUsed = true;
+  log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.${freeRegroup ? ' First regroup: no Temper gained.' : ''}`);
+  if (!freeRegroup) raiseTemper('discarding again');
   enemyAttack('discarding cards', 0.5, state.equipment.armor?.discardBlock || 0);
   render();
 }
@@ -562,13 +574,15 @@ function render(){
   if (state.playerHit) { pulseElement('playerHp', 'hp-hit'); state.playerHit = false; }
   if (state.monsterHit) { pulseElement('monsterHp', 'hp-shake'); state.monsterHit = false; }
   const attackBtn = document.getElementById('attackBtn');
+  const discardBtn = document.getElementById('discardBtn');
   const best = bestAttack(selectedCards());
   const weaknessHot = !!best && best.traits.includes(state.enemy.weakness) && !state.gameOver;
   attackBtn.innerHTML = `${weaknessHot ? '🔥 ' : ''}Attack${weaknessHot ? ' 🔥' : ''}<small>auto-best combo</small>`;
   attackBtn.disabled = state.gameOver;
   attackBtn.classList.toggle('attack-ready', !!best && best.total >= state.enemy.hp && !state.gameOver);
   attackBtn.classList.toggle('attack-short', !!best && best.total < state.enemy.hp && !state.gameOver);
-  document.getElementById('discardBtn').disabled=state.gameOver;
+  discardBtn.innerHTML = state.enemy.freeDiscardUsed ? 'Discard <small>raises Temper; half hit</small>' : 'Regroup <small>first discard: no Temper; half hit</small>';
+  discardBtn.disabled=state.gameOver;
   document.getElementById('clearSelectionBtn').disabled=state.gameOver || !state.selected.length;
 }
 

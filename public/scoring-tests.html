@@ -37,6 +37,7 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   <button id="discardBtn"></button>
   <button id="clearSelectionBtn"></button>
   <button id="restartBtn"></button>
+  <button id="newSeedBtn"></button>
   <div id="scorePreview"></div>
   <div id="enemy"></div>
   <div id="equipment"></div>
@@ -66,22 +67,23 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   }
 
   assertEqual('pair is a match combo', api.isMatchCombo([card(2, 'red'), card(2, 'blue')]), true);
-  assertEqual('pair match score', score([card(2, 'red'), card(2, 'blue')]).total, 5);
+  assertEqual('pair match score', score([card(2, 'red'), card(2, 'blue')]).total, 9);
 
   assertEqual('1-2-3 is a sequence combo', api.isSequenceCombo([card(1), card(2, 'blue'), card(3, 'green')]), true);
   assertEqual('three-card sequence score', score([card(1), card(2, 'blue'), card(3, 'green')]).total, 15);
 
   assertEqual('three red cards are a flush combo', api.isFlushCombo([card(1), card(4), card(8)]), true);
-  assertEqual('three-card flush score', score([card(1), card(4), card(8)]).total, 18);
+  assertEqual('three-card flush score', score([card(1), card(4), card(8)]).total, 12);
 
   const straightFlush = [card(1), card(2), card(3)];
   assertArrayEqual('straight flush stacks sequence and flush', api.traitInfo(straightFlush), ['sequence', 'flush']);
-  assertEqual('straight flush stacked score', score(straightFlush).total, 33);
+  assertEqual('straight flush stacked score', score(straightFlush).total, 27);
 
-  assertEqual('two pair match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(5, 'green'), card(5, 'purple')]).total, 10);
-  assertEqual('full house match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(2, 'green'), card(5, 'red'), card(5, 'purple')]).total, 20);
+  assertEqual('two pair match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(5, 'green'), card(5, 'purple')]).total, 18);
+  assertEqual('full house match chunks score separately', score([card(2, 'red'), card(2, 'blue'), card(2, 'green'), card(5, 'red'), card(5, 'purple')]).total, 36);
+  assertEqual('four-kind earns its rarity premium', score([card(7), card(7, 'blue'), card(7, 'green'), card(7, 'purple')]).total, 63);
 
-  assertEqual('weakness bonus applies after base combo score', score([card(2, 'red'), card(2, 'blue')], { weakness: 'match' }).total, 7);
+  assertEqual('weakness bonus applies after base combo score', score([card(2, 'red'), card(2, 'blue')], { weakness: 'match' }).total, 13);
   assertEqual(
     'matching weapon, any-weapon, and item bonuses add after combo score',
     score([card(1), card(2, 'blue'), card(3, 'green')], {
@@ -92,8 +94,8 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   );
 
   assertEqual('final boss curse reduces sequence scoring count by one', score([card(1), card(2, 'blue'), card(3, 'green')], { finalBoss: true }).total, 5);
-  assertEqual('final boss curse reduces stacked sequence and flush scoring count by one', score(straightFlush, { finalBoss: true }).total, 11);
-  assertEqual('final boss curse reduces one match chunk before scoring', score([card(2, 'red'), card(2, 'blue'), card(2, 'green')], { finalBoss: true }).total, 5);
+  assertEqual('final boss curse reduces stacked sequence and flush scoring count by one', score(straightFlush, { finalBoss: true }).total, 9);
+  assertEqual('final boss curse reduces one match chunk before scoring', score([card(2, 'red'), card(2, 'blue'), card(2, 'green')], { finalBoss: true }).total, 9);
 
   const passed = results.filter(Boolean).length;
   const failed = results.length - passed;
