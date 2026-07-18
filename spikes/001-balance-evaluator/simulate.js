@@ -26,6 +26,7 @@ const { config } = Rules;
 const POLICY_NAMES = ['random-valid', 'max-score', 'heuristic', 'lookahead'];
 const VARIANTS = Object.freeze({
   baseline: Object.freeze({ name: 'Baseline' }),
+  'no-crown': Object.freeze({ name: 'No Crown Cracks', crownPerClean: 0, crownCap: 0 }),
   'crown-1': Object.freeze({ name: 'Crown Cracks 1 HP', crownPerClean: 1, crownCap: 8 }),
   'crown-2': Object.freeze({ name: 'Crown Cracks 2 HP', crownPerClean: 2, crownCap: 12 }),
   'boss-edit': Object.freeze({ name: 'Best boss deck edit', bossDeckEdit: 'best' }),
@@ -380,11 +381,16 @@ function applyBossDeckEdit(state, allowedType) {
 
 function applyCrownCracks(state, variant, runStats) {
   if (!state.enemy.finalBoss || runStats.finalBossStartHp != null) return;
-  const reduction = variant.crownPerClean
+  const overridesProduction = Object.prototype.hasOwnProperty.call(variant, 'crownPerClean');
+  const reduction = overridesProduction
     ? Math.min(variant.crownCap, state.stats.cleanVictories * variant.crownPerClean)
-    : 0;
-  state.enemy.hp = Math.max(1, state.enemy.hp - reduction);
-  state.enemy.maxHp = Math.max(1, state.enemy.maxHp - reduction);
+    : state.enemy.crownCrackReduction || 0;
+  if (overridesProduction) {
+    state.enemy.hp = Math.max(1, config.finalBossBaseHp - reduction);
+    state.enemy.maxHp = state.enemy.hp;
+    state.enemy.crownCrackReduction = reduction;
+    state.finalBossCrownReduction = reduction;
+  }
   runStats.crownApplied = reduction;
   runStats.finalBossStartHp = state.enemy.hp;
 }
@@ -512,7 +518,7 @@ function selfTest() {
 }
 
 function parseArgs(argv) {
-  const args = { runs: 200, variants: ['baseline', 'crown-2', 'boss-edit'], policies: POLICY_NAMES };
+  const args = { runs: 200, variants: ['no-crown', 'baseline', 'boss-edit'], policies: POLICY_NAMES };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--runs') args.runs = Number(argv[++index]);

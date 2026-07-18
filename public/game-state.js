@@ -72,6 +72,7 @@
       maxHp: 16,
       defeated: 0,
       finalDefeated: false,
+      finalBossCrownReduction: 0,
       deck: makeDeck(),
       discard: [],
       hand: [],
@@ -105,7 +106,12 @@
       const finalBoss = !state.finalDefeated && level === config.finalEncounter;
       const boss = finalBoss || (level < config.finalEncounter && level % 5 === 0) || (state.finalDefeated && level % 5 === 0);
       const weakness = sample(config.weaknessTypes);
-      const hp = finalBoss ? 72 : boss ? 24 + Math.floor(level * 2.5) : 6 + Math.floor(level * 2) + Math.floor(random() * 3);
+      const crownCrackReduction = finalBoss ? Rules.crownCrackReduction(state.stats.cleanVictories) : 0;
+      const hp = finalBoss
+        ? config.finalBossBaseHp - crownCrackReduction
+        : boss
+          ? 24 + Math.floor(level * 2.5)
+          : 6 + Math.floor(level * 2) + Math.floor(random() * 3);
       return {
         name: finalBoss ? finalBossName : boss ? sample(bossNames) : sample(enemyNames),
         boss,
@@ -113,6 +119,7 @@
         weakness,
         hp,
         maxHp: hp,
+        crownCrackReduction,
         damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5),
         temper: 0,
         freeDiscardUsed: false
@@ -169,6 +176,12 @@
 
     function advanceEnemy() {
       state.enemy = newEnemy();
+      if (state.enemy.finalBoss) {
+        state.finalBossCrownReduction = state.enemy.crownCrackReduction;
+        if (state.enemy.crownCrackReduction > 0) {
+          log(`Crown Cracks: ${state.stats.cleanVictories} Clean Victories remove ${state.enemy.crownCrackReduction} HP from the final boss (${config.finalBossBaseHp} → ${state.enemy.maxHp}).`);
+        }
+      }
       applyHandLimit();
       fillHand();
     }
@@ -227,11 +240,15 @@
       return { damage, dead: true, modal: 'defeat' };
     }
 
-    function cleanVictoryBonus(overkill, boss) {
+    function cleanVictoryBonus(overkill, boss, finalBoss = false) {
       if (overkill < 0 || overkill > 3) return false;
+      const crownBefore = Rules.crownCrackReduction(state.stats.cleanVictories);
       state.gold += config.cleanVictoryGold;
       state.stats.cleanVictories++;
-      setReward(`Clean Victory: +${config.cleanVictoryGold} gold for winning with ${overkill} excess damage.`, true);
+      const crownAfter = Rules.crownCrackReduction(state.stats.cleanVictories);
+      const crownAdded = !state.finalDefeated && !finalBoss ? crownAfter - crownBefore : 0;
+      const crownText = crownAdded > 0 ? ` Crown Cracks remove another ${crownAdded} HP from the final boss.` : '';
+      setReward(`Clean Victory: +${config.cleanVictoryGold} gold for winning with ${overkill} excess damage.${crownText}`, true);
       if (boss) {
         const before = state.hp;
         state.hp = Math.min(state.maxHp, state.hp + 1);
@@ -356,7 +373,7 @@
       log(`Success: ${Rules.comboName(best.traits)} deals ${attackDamage} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}.`);
       const defeatedBoss = state.enemy.boss;
       state.lastReward = '';
-      cleanVictoryBonus(overkill, defeatedBoss);
+      cleanVictoryBonus(overkill, defeatedBoss, state.enemy.finalBoss);
       state.defeated++;
       fillHand();
       const drawn = state.hand.length - beforeDraw;

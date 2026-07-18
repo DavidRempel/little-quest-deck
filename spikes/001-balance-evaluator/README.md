@@ -17,7 +17,7 @@ node spikes/001-balance-evaluator/simulate.js
 Useful focused runs:
 
 ```bash
-node spikes/001-balance-evaluator/simulate.js --runs 1000 --variants baseline,crown-2 --policies max-score,heuristic
+node spikes/001-balance-evaluator/simulate.js --runs 1000 --variants no-crown,baseline --policies max-score,heuristic
 node spikes/001-balance-evaluator/simulate.js --runs 100 --json
 ```
 
@@ -32,7 +32,8 @@ The evaluator imports `public/rules.js` and `public/game-state.js` directly. It 
 
 ## Variants
 
-- `baseline`: current production mechanics.
+- `baseline`: current production mechanics, including live Crown Cracks.
+- `no-crown`: override production Crown Cracks and restore the final boss to 72 HP.
 - `crown-1`: each Clean Victory removes 1 HP from the final boss, capped at 8.
 - `crown-2`: each Clean Victory removes 2 HP from the final boss, capped at 12.
 - `boss-edit`: after bosses 5, 10, and 15, apply the deck edit with the largest proxy improvement: remove one non-hand card, recolour one card, or shift one rank by ±1.
@@ -43,6 +44,8 @@ The deck editor is intentionally an optimistic automated player. Its result is a
 ## Status
 
 Production build evaluated: `v4.26-structure-refactor`.
+
+The results below are the pre-implementation evidence used to choose Crown Cracks. Starting with `v4.27-crown-cracks`, the CLI's `baseline` includes the live 2-HP-per-Clean-Victory mechanic; use `no-crown` for the old 72-HP comparison.
 
 ### Main comparison
 

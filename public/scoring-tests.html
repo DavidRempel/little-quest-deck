@@ -94,6 +94,21 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   assertEqual('lethal retaliation reports defeat modal', defeatResult.modal, 'defeat');
   assertEqual('lethal retaliation marks run over', defeat.state.gameOver, true);
   assertEqual('normal equipment frequency remains 15%', Rules.config.monsterEquipmentDropChance, 0.15);
+  assertEqual('zero Clean Victories cause zero Crown Cracks', Rules.crownCrackReduction(0), 0);
+  assertEqual('five Clean Victories remove 10 final-boss HP', Rules.crownCrackReduction(5), 10);
+  assertEqual('Crown Cracks cap at 12 HP', Rules.crownCrackReduction(99), 12);
+
+  const crown = GameState.createGame('CROWN-CRACKS');
+  crown.state.defeated = 14;
+  crown.state.stats.cleanVictories = 4;
+  crown.state.hand = [card(2, 'red'), card(2, 'blue'), card(5), card(6), card(8)];
+  crown.state.deck = [card(1), card(3), card(4)];
+  crown.state.selected = crown.state.hand.slice(0, 2).map(item => item.id);
+  crown.state.enemy = { name: 'Boss Test', boss: true, finalBoss: false, weakness: 'sequence', hp: 9, maxHp: 9, damage: 1, temper: 0, freeDiscardUsed: false, crownCrackReduction: 0 };
+  crown.attack();
+  assertEqual('boss Clean Victory advances to final boss', crown.state.enemy.finalBoss, true);
+  assertEqual('five Clean Victories reduce final boss from 72 to 62 HP', crown.state.enemy.maxHp, 62);
+  assertEqual('final boss records Crown Crack reduction', crown.state.enemy.crownCrackReduction, 10);
 
   const passed = results.filter(Boolean).length;
   const failed = results.length - passed;

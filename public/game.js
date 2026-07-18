@@ -81,7 +81,9 @@
   }
 
   function showVictoryModal() {
-    showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the final boss on encounter ${config.finalEncounter}. Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`);
+    const cracked = game.state.finalBossCrownReduction;
+    const crackText = cracked > 0 ? ` Your Clean Victories cracked ${cracked} HP from its crown before the fight.` : '';
+    showModal(`<h2>👑 Forest Crown Won</h2><p>You beat the final boss on encounter ${config.finalEncounter}.${crackText} Prize: the Forest Crown, 40 gold, and bragging rights over a browser tab.</p><div class="modal-actions"><button onclick="leaveShop()">Keep playing endless mode</button><button onclick="start()">Start a fresh run</button></div>`);
   }
 
   function showDefeatModal() {
@@ -127,8 +129,11 @@
       : state.enemy.boss
         ? 'Boss fight: shop after defeat.'
         : `${5 - (state.defeated % 5)} encounter${5 - (state.defeated % 5) === 1 ? '' : 's'} to next boss.`;
+    const crownText = state.enemy.finalBoss
+      ? `<div class="line"><strong>Crown Cracks:</strong> ${state.stats.cleanVictories} Clean Victories removed ${state.enemy.crownCrackReduction} HP (${config.finalBossBaseHp} → ${state.enemy.maxHp}).</div>`
+      : '';
 
-    document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${config.weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="temper-row"><span>Temper</span><strong>${state.enemy.temper || 0}/${config.maxTemper}</strong><div class="temper-pips">${[1, 2, 3].map(index => `<span class="temper-pip ${index <= (state.enemy.temper || 0) ? 'hot' : ''}"></span>`).join('')}</div></div><div class="line">Attack: <strong>${damage} HP</strong>${state.enemy.temper ? ` (base ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">Next non-lethal action raises Temper first, then this monster hits for <strong>${nextDamage} HP</strong>${blocked ? ' after armor' : ''}.</div><div class="line">${bossText}</div><div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
+    document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div><div class="line">Weakness: <strong>${config.weaknessLabel[state.enemy.weakness]}</strong> trait scores ×1.5.</div><div class="temper-row"><span>Temper</span><strong>${state.enemy.temper || 0}/${config.maxTemper}</strong><div class="temper-pips">${[1, 2, 3].map(index => `<span class="temper-pip ${index <= (state.enemy.temper || 0) ? 'hot' : ''}"></span>`).join('')}</div></div><div class="line">Attack: <strong>${damage} HP</strong>${state.enemy.temper ? ` (base ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">Next non-lethal action raises Temper first, then this monster hits for <strong>${nextDamage} HP</strong>${blocked ? ' after armor' : ''}.</div><div class="line">${bossText}</div>${crownText}<div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
   }
 
   function renderHand() {
@@ -167,8 +172,12 @@
     const nextTemper = Math.min(config.maxTemper, state.enemy.temper + 1);
     const retaliation = Math.max(0, state.enemy.damage + nextTemper - (state.equipment.armor.reduction || 0));
     const clean = lethal && best.margin >= 0 && best.margin <= 3;
+    const crownBefore = Rules.crownCrackReduction(state.stats.cleanVictories);
+    const crownAfter = Rules.crownCrackReduction(state.stats.cleanVictories + 1);
+    const crownAdded = !state.finalDefeated && !state.enemy.finalBoss ? crownAfter - crownBefore : 0;
+    const crownForecast = crownAdded > 0 ? ` and -${crownAdded} final boss HP` : '';
     const verdict = `${Rules.comboName(best.traits)}: <strong>${best.total}</strong> vs ${state.enemy.hp}/${state.enemy.maxHp} HP — ${best.margin >= 0 ? `defeats by ${best.margin}` : `leaves ${leaves} HP`}.`;
-    preview.innerHTML = `<div class="score-big"><span class="score-number">${best.total}</span><strong>${Rules.comboName(best.traits)}</strong></div><div>${verdict}</div><div class="forecast"><div class="forecast-item"><span>Cards after attack</span><strong>${kept} kept, ${drawn} drawn</strong></div><div class="forecast-item"><span>Enemy response</span><strong>${lethal ? 'Defeated' : `${retaliation} damage at Temper ${nextTemper}`}</strong></div></div>${clean ? `<div class="clean-forecast">Clean Victory: +${config.cleanVictoryGold} gold${state.enemy.boss ? ' and heal 1 HP' : ''}</div>` : ''}<div style="margin-top:8px;"><small>${best.formula}</small></div>`;
+    preview.innerHTML = `<div class="score-big"><span class="score-number">${best.total}</span><strong>${Rules.comboName(best.traits)}</strong></div><div>${verdict}</div><div class="forecast"><div class="forecast-item"><span>Cards after attack</span><strong>${kept} kept, ${drawn} drawn</strong></div><div class="forecast-item"><span>Enemy response</span><strong>${lethal ? 'Defeated' : `${retaliation} damage at Temper ${nextTemper}`}</strong></div></div>${clean ? `<div class="clean-forecast">Clean Victory: +${config.cleanVictoryGold} gold${state.enemy.boss ? ' and heal 1 HP' : ''}${crownForecast}</div>` : ''}<div style="margin-top:8px;"><small>${best.formula}</small></div>`;
   }
 
   function renderRunSummary() {

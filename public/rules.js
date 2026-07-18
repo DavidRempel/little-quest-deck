@@ -2,11 +2,14 @@
   'use strict';
 
   const config = Object.freeze({
-    buildVersion: 'v4.26-structure-refactor',
+    buildVersion: 'v4.27-crown-cracks',
     startHandSize: 5,
     maxHandSize: 7,
     maxTemper: 3,
     cleanVictoryGold: 2,
+    finalBossBaseHp: 72,
+    crownCrackHpPerClean: 2,
+    crownCrackHpCap: 12,
     monsterEquipmentDropChance: 0.15,
     finalEncounter: 16,
     colors: Object.freeze(['red', 'green', 'blue', 'purple']),
@@ -33,6 +36,11 @@
 
   function familyScore(family, count) {
     return config.comboScores[family][count] || 0;
+  }
+
+  function crownCrackReduction(cleanVictories) {
+    const victories = Math.max(0, Math.floor(Number(cleanVictories) || 0));
+    return Math.min(config.crownCrackHpCap, victories * config.crownCrackHpPerClean);
   }
 
   function matchChunkScore(cards, finalPenalty = false) {
@@ -120,6 +128,7 @@
     config,
     countCards,
     familyScore,
+    crownCrackReduction,
     matchChunkScore,
     isMatchCombo,
     isSequenceCombo,
