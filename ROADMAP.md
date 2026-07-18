@@ -9,7 +9,9 @@ Use the cleaner no-build structure to keep family playtesting fast while adding 
 - Added browser regression tests for scoring and core combat transitions.
 
 ## Next - Improve The Game Loop
+- Playtest Crown Cracks: each Clean Victory removes 2 HP from the final boss, capped at 12. The production-linked balance spike found a targeted final-boss improvement without changing pre-boss progression.
 - Add deck-editing rewards: add card, remove card, upgrade card, or skip for gold.
+- Use `spikes/001-balance-evaluator/` to compare balance changes against random-valid, max-score, heuristic, and bounded-lookahead policies on matched seeds.
 - Improve reward pacing so normal fights, bosses, shops, and final boss feel distinct.
 - Tune enemy HP/damage curves after a few family playtests.
 - Add an optional simpler mode for younger players if needed.
