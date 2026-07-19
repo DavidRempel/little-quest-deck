@@ -25,9 +25,9 @@ The evaluator imports `public/rules.js` and `public/game-state.js` directly. It 
 
 ## Policies
 
-- `random-valid`: chooses a random valid attack, sometimes using the free Regroup.
+- `random-valid`: chooses a random valid attack, sometimes spending the chapter's one-card Regroup.
 - `max-score`: always plays the legal subset with the highest immediate damage.
-- `heuristic`: prioritizes lethal Clean Victories, efficient damage, and a free Regroup when the current hand is weak.
+- `heuristic`: prioritizes lethal Clean Victories, efficient damage, and the limited one-card Regroup when the current hand is weak.
 - `lookahead`: compares a bounded set of attacks and discards using immediate damage, survival, and sampled next-hand potential.
 
 ## Variants
@@ -43,9 +43,22 @@ The deck editor is intentionally an optimistic automated player. Its result is a
 
 ## Status
 
-Production build evaluated: `v4.26-structure-refactor`.
+Production build evaluated: `v4.28-clear-gear`.
 
 The results below are the pre-implementation evidence used to choose Crown Cracks. Starting with `v4.27-crown-cracks`, the CLI's `baseline` includes the live 2-HP-per-Clean-Victory mechanic; use `no-crown` for the old 72-HP comparison.
+
+### v4.28 limited-Regroup regression
+
+After changing Regroup to one single-card swap per boss chapter, the production-linked baseline was rerun. The first three policies use 1,000 matched seeds; lookahead uses 200.
+
+| Policy | Win rate | Final-boss reach | Mean Regroups |
+|---|---:|---:|---:|
+| Random-valid | 4.2% | 24.1% | 1.6 |
+| Max score | 14.3% | 40.5% | 0.4 |
+| Heuristic | 20.2% | 47.2% | 1.7 |
+| Lookahead | 25.0% | 58.5% | 1.4 |
+
+The change preserves a large skill gap but makes strategic policies materially less forgiving than v4.27. This is acceptable for a playtest build, but the Regroup cadence should be watched in family play rather than tuned further from simulation alone.
 
 ### Main comparison
 
@@ -71,7 +84,7 @@ The edit families are in the same broad power range, although rank shifting is s
 
 ### Stress finding
 
-The first lookahead implementation allowed repeated post-Regroup discards. Some seeds produced long discard loops and eventually exhausted Node's heap. The policy now considers discard only for the first free Regroup (or when no attack exists), matching sensible play. A regression assertion covers that edge case, and the 200-seed lookahead run completes normally.
+The first lookahead implementation allowed repeated post-Regroup discards. Some seeds produced long discard loops and eventually exhausted Node's heap. Production now allows one one-card Regroup per boss chapter, plus an Emergency Swap only when no valid attack exists. The evaluator imports and follows that state directly, and its candidate generator considers only legal one-card swaps.
 
 ## Verdict: VALIDATED — production-linked evaluator
 

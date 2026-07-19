@@ -6,6 +6,44 @@
   const enemyNames = ['Moss Imp', 'Tin Goblin', 'Lantern Bat', 'Root Troll', 'Moon Fox', 'Bog Wyrm', 'Clockwork Crab', 'Ash Sprite', 'Cave Beetle', 'Glass Ogre'];
   const bossNames = ['The Sleepy Dragon', 'Queen Briarback', 'The Three-Eyed Toad'];
   const finalBossName = 'The Crown-Eating Dragon';
+  const equipmentStats = Object.freeze([
+    { key: 'allDamage', label: 'All attacks', value: item => item.damageBonus || 0 },
+    { key: 'matchDamage', label: 'Match attacks', value: item => item.mode === 'match' ? item.bonus || 0 : 0 },
+    { key: 'sequenceDamage', label: 'Sequence attacks', value: item => item.mode === 'sequence' ? item.bonus || 0 : 0 },
+    { key: 'flushDamage', label: 'Flush attacks', value: item => item.mode === 'flush' ? item.bonus || 0 : 0 },
+    { key: 'block', label: 'Damage blocked', value: item => item.reduction || 0 },
+    { key: 'maxHp', label: 'Max HP', value: item => item.hpBonus || 0 },
+    { key: 'regroupBlock', label: 'Regroup block', value: item => item.discardBlock || 0 },
+    { key: 'gold', label: 'Gold per drop', value: item => item.goldBonus || 0 },
+    { key: 'bossHeal', label: 'Heal after boss', value: item => item.healAfterBoss || 0 },
+    { key: 'regroupDraw', label: 'Extra Regroup draw', value: item => item.extraDiscardDraw || 0 }
+  ]);
+
+  function itemStats(item) {
+    if (!item) return [];
+    return equipmentStats
+      .map(stat => ({ key: stat.key, label: stat.label, value: stat.value(item) }))
+      .filter(stat => stat.value !== 0);
+  }
+
+  function itemDescription(item, includeIcon = true) {
+    if (!item) return 'empty';
+    const bits = itemStats(item).map(stat => `${stat.label} +${stat.value}`);
+    const description = `${item.name}${bits.length ? ` — ${bits.join(', ')}` : ' — no bonus'}`;
+    return includeIcon ? `${item.icon || ''} ${description}`.trim() : description;
+  }
+
+  function compareEquipment(candidate, current) {
+    const changes = equipmentStats.map(stat => {
+      const before = stat.value(current || {});
+      const after = stat.value(candidate || {});
+      return { key: stat.key, label: stat.label, before, after, delta: after - before };
+    }).filter(change => change.delta !== 0);
+    if (!changes.length) return { verdict: 'same', label: 'Same effects', changes };
+    if (changes.every(change => change.delta >= 0)) return { verdict: 'better', label: 'Clear upgrade', changes };
+    if (changes.every(change => change.delta <= 0)) return { verdict: 'worse', label: 'Clear downgrade', changes };
+    return { verdict: 'different', label: 'Trade-off', changes };
+  }
 
   function hashSeed(seed) {
     let hash = 2166136261;
@@ -90,6 +128,7 @@
       },
       lastReward: 'No rewards yet.',
       selected: [],
+      regroupAvailable: true,
       enemy: null,
       log: [],
       gameOver: false,
@@ -121,8 +160,7 @@
         maxHp: hp,
         crownCrackReduction,
         damage: finalBoss ? 7 : boss ? 3 + Math.floor(level / 5) : 1 + Math.floor(level / 5),
-        temper: 0,
-        freeDiscardUsed: false
+        temper: 0
       };
     }
 
@@ -205,6 +243,14 @@
       return score.valid ? score : null;
     }
 
+    function hasAnyAttack() {
+      for (let mask = 1; mask < (1 << state.hand.length); mask++) {
+        const cards = state.hand.filter((_, index) => mask & (1 << index));
+        if (scoreCards(cards).valid) return true;
+      }
+      return false;
+    }
+
     function setReward(text, append = false) {
       state.lastReward = append && state.lastReward ? `${state.lastReward} ${text}` : text;
       log(`<span class="game-over">${text}</span>`);
@@ -263,7 +309,7 @@
       const armorBonus = 1 + scale;
       const itemDamage = 3 + scale;
       return [
-        { slot: 'weapon', icon: '🗡️', name: 'Balanced Blade', mode: null, bonus: 2 + scale, damageBonus: 2 + scale, value: 7 },
+        { slot: 'weapon', icon: '🗡️', name: 'Balanced Blade', mode: null, damageBonus: 2 + scale, value: 7 },
         { slot: 'weapon', icon: '🪓', name: 'Match Axe', mode: 'match', bonus: weaponBonus, value: 7 },
         { slot: 'weapon', icon: '🏹', name: 'Sequence Bow', mode: 'sequence', bonus: weaponBonus, value: 7 },
         { slot: 'weapon', icon: '🔱', name: 'Flush Trident', mode: 'flush', bonus: weaponBonus, value: 7 },
@@ -301,21 +347,6 @@
         state.hp = Math.max(1, Math.min(state.maxHp, state.hp + Math.max(0, delta)));
       }
       setReward(`Equipped ${itemDescription(item)}.`);
-    }
-
-    function itemDescription(item, includeIcon = true) {
-      if (!item) return 'empty';
-      const bits = [];
-      if (item.mode && item.bonus) bits.push(`${config.weaknessLabel[item.mode]} +${item.bonus}`);
-      if (item.reduction) bits.push(`Block ${item.reduction}`);
-      if (item.damageBonus) bits.push(`All attacks +${item.damageBonus}`);
-      if (item.hpBonus) bits.push(`Max HP +${item.hpBonus}`);
-      if (item.discardBlock) bits.push(`Discard hit block +${item.discardBlock}`);
-      if (item.goldBonus) bits.push(`Gold drops +${item.goldBonus}`);
-      if (item.healAfterBoss) bits.push(`Heal ${item.healAfterBoss} after bosses`);
-      if (item.extraDiscardDraw) bits.push(`Discard replaces +${item.extraDiscardDraw}`);
-      const description = `${item.name}${bits.length ? ` — ${bits.join(', ')}` : ' — no bonus'}`;
-      return includeIcon ? `${item.icon || ''} ${description}`.trim() : description;
     }
 
     function makeShopOffers() {
@@ -382,12 +413,15 @@
       let modal = null;
       if (state.defeated === config.finalEncounter && defeatedBoss) {
         state.finalDefeated = true;
+        state.regroupAvailable = true;
         state.gold += 40;
         setReward('Final boss defeated: you win the Forest Crown and 40 gold.', true);
         advanceEnemy();
         log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
         modal = 'victory';
       } else if (defeatedBoss) {
+        state.regroupAvailable = true;
+        log('Regroup recharged: you can swap one card before the next boss.');
         addGold(12 + Math.floor(state.defeated / 5) * 3 + (state.equipment.item.goldBonus || 0), 'Boss purse', true);
         if (state.equipment.item.healAfterBoss) state.hp = Math.min(state.maxHp, state.hp + state.equipment.item.healAfterBoss);
         advanceEnemy();
@@ -412,22 +446,33 @@
     function discardSelected() {
       if (state.gameOver) return { ok: false };
       const cards = selectedCards();
-      if (!cards.length) {
-        log('Choose cards to discard first.');
-        return { ok: false };
+      const emergency = !state.regroupAvailable && !hasAnyAttack();
+      if (!state.regroupAvailable && !emergency) {
+        log('Regroup is spent. It recharges after the next boss.');
+        return { ok: false, reason: 'spent' };
       }
-      const count = cards.length;
+      if (cards.length !== 1) {
+        log('Regroup swaps exactly one selected card.');
+        return { ok: false, reason: 'select-one' };
+      }
       state.stats.discards++;
-      cards.forEach(card => state.discard.push(card));
+      state.discard.push(cards[0]);
       state.hand = state.hand.filter(card => !state.selected.includes(card.id));
       state.selected = [];
-      const drawn = drawUpTo(count + (state.equipment.item.extraDiscardDraw || 0));
-      const freeRegroup = !state.enemy.freeDiscardUsed;
-      state.enemy.freeDiscardUsed = true;
-      log(`You discard ${count} card${count > 1 ? 's' : ''} and replace ${drawn}.${freeRegroup ? ' First regroup: no Temper gained.' : ''}`);
-      if (!freeRegroup) raiseTemper('discarding again');
-      const retaliation = enemyAttack('discarding cards', 0.5, state.equipment.armor.discardBlock || 0);
-      return { ok: true, freeRegroup, drawn, modal: retaliation.modal };
+      const drawn = drawUpTo(1 + (state.equipment.item.extraDiscardDraw || 0));
+      if (emergency) {
+        log(`Emergency swap: replaced 1 card with ${drawn}. No valid attack was available.`);
+        raiseTemper('an emergency swap');
+      } else {
+        state.regroupAvailable = false;
+        log(`Regroup: replaced 1 card with ${drawn}. Charge spent until the next boss is defeated.`);
+      }
+      const retaliation = enemyAttack(
+        emergency ? 'an emergency swap' : 'Regrouping',
+        emergency ? 1 : 0.5,
+        emergency ? 0 : state.equipment.armor.discardBlock || 0
+      );
+      return { ok: true, emergency, drawn, modal: retaliation.modal };
     }
 
     function equipPendingReward() {
@@ -502,12 +547,15 @@
       setSortMode,
       selectedCards,
       bestAttack,
+      hasAnyAttack,
       scoreCards,
       equipPendingReward,
       sellPendingReward,
       buyShopOffer,
       makeShopOffers,
-      itemDescription
+      itemDescription,
+      itemStats,
+      compareEquipment
     };
   }
 

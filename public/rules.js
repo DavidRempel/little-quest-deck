@@ -2,7 +2,7 @@
   'use strict';
 
   const config = Object.freeze({
-    buildVersion: 'v4.27-crown-cracks',
+    buildVersion: 'v4.28-clear-gear',
     startHandSize: 5,
     maxHandSize: 7,
     maxTemper: 3,
@@ -15,6 +15,7 @@
     colors: Object.freeze(['red', 'green', 'blue', 'purple']),
     weaknessTypes: Object.freeze(['match', 'sequence', 'flush']),
     weaknessLabel: Object.freeze({ match: 'Match', sequence: 'Sequence', flush: 'Flush' }),
+    weaknessIcon: Object.freeze({ match: '⚔️', sequence: '🏹', flush: '✨' }),
     comboScores: Object.freeze({
       match: Object.freeze({ 2: 9, 3: 27, 4: 63 }),
       sequence: Object.freeze({ 2: 5, 3: 15, 4: 35, 5: 68, 6: 120, 7: 192 }),
@@ -99,15 +100,17 @@
     const weaponBonus = weapon.mode && traits.includes(weapon.mode) ? weapon.bonus || 0 : 0;
     const weaponAnyBonus = weapon.damageBonus || 0;
     const itemBonus = item.damageBonus || 0;
+    const weaknessScore = Math.floor(baseBeforeWeakness * weaknessMultiplier);
+    const weaknessBonus = weaknessScore - baseBeforeWeakness;
     const total = valid
-      ? Math.floor(baseBeforeWeakness * weaknessMultiplier) + weaponBonus + weaponAnyBonus + itemBonus
+      ? weaknessScore + weaponBonus + weaponAnyBonus + itemBonus
       : 0;
     const pieces = [];
     if (matchBase) pieces.push(`match chunks ${matchBase}`);
     if (finalPenalty) pieces.push(`final boss curse: scores as ${scoreCount} card${scoreCount === 1 ? '' : 's'}`);
     if (sequenceBase) pieces.push(`sequence ${scoreCount} cards = ${sequenceBase}`);
     if (flushBase) pieces.push(`flush ${scoreCount} cards = ${flushBase}`);
-    if (weaknessMultiplier > 1) pieces.push('×1.5 weakness');
+    if (weaknessBonus) pieces.push(`weakness +${weaknessBonus} (×1.5)`);
     if (weaponBonus) pieces.push(`+${weaponBonus} weapon`);
     if (weaponAnyBonus) pieces.push(`+${weaponAnyBonus} weapon`);
     if (itemBonus) pieces.push(`+${itemBonus} item`);
@@ -119,6 +122,19 @@
       valid,
       total,
       multiplier: weaknessMultiplier,
+      breakdown: {
+        match: matchBase,
+        sequence: sequenceBase,
+        flush: flushBase,
+        base: baseBeforeWeakness,
+        weaknessBonus,
+        weaponModeBonus: weaponBonus,
+        weaponDamageBonus: weaponAnyBonus,
+        itemDamageBonus: itemBonus,
+        equipmentBonus: weaponBonus + weaponAnyBonus + itemBonus,
+        finalPenalty,
+        scoreCount
+      },
       formula: valid ? `${pieces.join(' + ')} = ${total}` : '',
       margin: valid ? total - enemyHp : null
     };

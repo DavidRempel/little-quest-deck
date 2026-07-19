@@ -115,25 +115,29 @@ function attackAction(attack) {
   return { type: 'attack', cards: attack.cards, attack };
 }
 
+function canRegroup(game) {
+  return game.state.regroupAvailable || !game.hasAnyAttack();
+}
+
 function randomValidPolicy(game, context) {
   const { state } = game;
   const attacks = allAttacks(game);
   if (!attacks.length) {
     const shuffled = shuffleCopy(state.hand, context.random);
-    return discardAction(shuffled.slice(0, 1 + Math.floor(context.random() * Math.min(3, shuffled.length))));
+    return discardAction(shuffled.slice(0, 1));
   }
   const lethal = attacks.filter(attack => attack.damage >= state.enemy.hp);
   if (lethal.length) return attackAction(sample(lethal, context.random));
-  if (!state.enemy.freeDiscardUsed && context.random() < 0.25) {
+  if (state.regroupAvailable && context.random() < 0.25) {
     const shuffled = shuffleCopy(state.hand, context.random);
-    return discardAction(shuffled.slice(0, 1 + Math.floor(context.random() * Math.min(3, shuffled.length))));
+    return discardAction(shuffled.slice(0, 1));
   }
   return attackAction(sample(attacks, context.random));
 }
 
 function maxScorePolicy(game) {
   const attacks = allAttacks(game);
-  if (!attacks.length) return discardAction([...game.state.hand]);
+  if (!attacks.length) return discardAction(game.state.hand.slice(0, 1));
   attacks.sort((a, b) => b.damage - a.damage || a.cards.length - b.cards.length);
   return attackAction(attacks[0]);
 }
@@ -141,17 +145,17 @@ function maxScorePolicy(game) {
 function heuristicPolicy(game) {
   const { state } = game;
   const attacks = allAttacks(game);
-  if (!attacks.length) return discardAction([...state.hand]);
+  if (!attacks.length) return discardAction(state.hand.slice(0, 1));
   const lethal = attacks.filter(attack => attack.damage >= state.enemy.hp).sort(lethalSort(state.enemy.hp));
   if (lethal.length) return attackAction(lethal[0]);
 
   attacks.sort((a, b) => b.damage / b.cards.length - a.damage / a.cards.length || b.damage - a.damage);
   const efficient = attacks[0];
-  const shouldRegroup = !state.enemy.freeDiscardUsed && efficient.damage < state.enemy.hp * 0.42;
+  const shouldRegroup = state.regroupAvailable && efficient.damage < state.enemy.hp * 0.42;
   if (!shouldRegroup || state.enemy.temper >= 1) return attackAction(efficient);
 
   const keep = new Set(efficient.cards.map(cardKey));
-  const toss = state.hand.filter(card => !keep.has(cardKey(card))).slice(0, 3);
+  const toss = state.hand.filter(card => !keep.has(cardKey(card))).slice(0, 1);
   return discardAction(toss.length ? toss : [state.hand[0]]);
 }
 
@@ -184,14 +188,14 @@ function lookaheadCandidates(game) {
     .slice(0, 4)
     .forEach(attack => {
       addUniqueAction(actions, seen, attackAction(attack));
-      if (!state.enemy.freeDiscardUsed) {
+      if (state.regroupAvailable) {
         const keep = new Set(attack.cards.map(cardKey));
-        const toss = state.hand.filter(card => !keep.has(cardKey(card))).slice(0, 3);
+        const toss = state.hand.filter(card => !keep.has(cardKey(card))).slice(0, 1);
         if (toss.length) addUniqueAction(actions, seen, discardAction(toss));
       }
     });
 
-  if (!state.enemy.freeDiscardUsed || !attacks.length) {
+  if (canRegroup(game)) {
     for (let mask = 1; mask < (1 << state.hand.length); mask++) {
       const cards = subsetCards(state.hand, mask);
       if (cards.length === 1) addUniqueAction(actions, seen, discardAction(cards));
@@ -224,10 +228,11 @@ function lookaheadValue(game, action, context) {
   const { state } = game;
   const nextDamage = expectedNextDamage(game, action, context);
   if (action.type === 'discard') {
-    const damageTaken = retaliationDamage(state, 0.5);
-    const repeatTemperPenalty = state.enemy.freeDiscardUsed ? 18 : 0;
+    const emergency = !state.regroupAvailable;
+    const damageTaken = retaliationDamage(state, emergency ? 1 : 0.5);
+    const emergencyPenalty = emergency ? 18 : 0;
     const lethalPenalty = damageTaken >= state.hp ? 100000 : 0;
-    return nextDamage * 2.2 - damageTaken * 22 - repeatTemperPenalty - lethalPenalty;
+    return nextDamage * 2.2 - damageTaken * 22 - emergencyPenalty - lethalPenalty;
   }
 
   const attack = action.attack;
@@ -243,7 +248,7 @@ function lookaheadValue(game, action, context) {
 
 function lookaheadPolicy(game, context) {
   const candidates = lookaheadCandidates(game);
-  if (!candidates.length) return discardAction([...game.state.hand]);
+  if (!candidates.length) return discardAction(game.state.hand.slice(0, 1));
   return candidates
     .map(action => ({ action, value: lookaheadValue(game, action, context) }))
     .sort((a, b) => b.value - a.value)[0].action;
@@ -505,7 +510,7 @@ function selfTest() {
   assert.equal(choice.attack.damage, 9);
   assert.equal(deckQuality(allCards(game.state)) > 0, true);
 
-  game.state.enemy.freeDiscardUsed = true;
+  game.state.regroupAvailable = false;
   assert.equal(lookaheadCandidates(game).every(action => action.type === 'attack'), true);
 
   const crownState = { enemy: { finalBoss: true, hp: 72, maxHp: 72 }, stats: { cleanVictories: 10 } };
