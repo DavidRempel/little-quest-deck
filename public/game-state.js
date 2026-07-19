@@ -119,6 +119,7 @@
       gold: 0,
       pendingReward: null,
       shopOffers: [],
+      shopRerollCost: config.shopRerollStartCost,
       playerHit: false,
       monsterHit: false,
       equipment: {
@@ -128,12 +129,12 @@
       },
       lastReward: 'No rewards yet.',
       selected: [],
-      regroupAvailable: true,
+      regroupTokens: 1,
       enemy: null,
       log: [],
       gameOver: false,
       seed,
-      stats: { attacks: 0, partialAttacks: 0, discards: 0, cleanVictories: 0, biggestCombo: 0, damageTaken: 0 }
+      stats: { attacks: 0, partialAttacks: 0, discards: 0, cleanVictories: 0, overkillVictories: 0, weaknessFinishes: 0, shopRerolls: 0, biggestCombo: 0, damageTaken: 0 }
     };
 
     function log(message) {
@@ -243,14 +244,6 @@
       return score.valid ? score : null;
     }
 
-    function hasAnyAttack() {
-      for (let mask = 1; mask < (1 << state.hand.length); mask++) {
-        const cards = state.hand.filter((_, index) => mask & (1 << index));
-        if (scoreCards(cards).valid) return true;
-      }
-      return false;
-    }
-
     function setReward(text, append = false) {
       state.lastReward = append && state.lastReward ? `${state.lastReward} ${text}` : text;
       log(`<span class="game-over">${text}</span>`);
@@ -303,6 +296,28 @@
       return true;
     }
 
+    function weaknessFinishBonus() {
+      state.stats.weaknessFinishes++;
+      if (state.regroupTokens < config.maxRegroupTokens) {
+        state.regroupTokens++;
+        setReward(`Weakness Finish: +1 Swap token. Bank: ${state.regroupTokens}/${config.maxRegroupTokens}.`, true);
+      } else {
+        state.gold++;
+        setReward(`Weakness Finish: Swap bank full, so you gain +1 gold instead.`, true);
+      }
+    }
+
+    function overkillVictoryBonus(overkill, boss) {
+      if (overkill < config.overkillThreshold) return false;
+      state.stats.overkillVictories++;
+      state.gold += config.overkillGold;
+      const treasureText = boss
+        ? ' The boss shop is already guaranteed.'
+        : ` Equipment chance rises from ${Math.round(config.monsterEquipmentDropChance * 100)}% to ${Math.round((config.monsterEquipmentDropChance + config.overkillTreasureBonus) * 100)}%.`;
+      setReward(`Big Overkill: +${config.overkillGold} gold for ${overkill} excess damage.${treasureText}`, true);
+      return true;
+    }
+
     function makeEquipmentPool(source = 'monster') {
       const scale = source === 'shop' ? 1 : 0;
       const weaponBonus = 4 + scale;
@@ -349,21 +364,33 @@
       setReward(`Equipped ${itemDescription(item)}.`);
     }
 
-    function makeShopOffers() {
+    function makeShopOffers(resetRerollCost = true) {
+      if (resetRerollCost) state.shopRerollCost = config.shopRerollStartCost;
       const offers = [];
       const used = [];
       for (let index = 0; index < 2; index++) {
         const item = makeRewardItem('shop', used);
         if (item) {
           used.push(item);
-          offers.push({ kind: 'gear', cost: 10 + index * 2, item });
+          offers.push({ kind: 'gear', cost: 10 + index * 2, item, sold: false });
         }
       }
-      if (state.hp < state.maxHp) offers.push({ kind: 'heal', cost: 6, label: 'Soup and bandages', text: 'Heal 6 HP' });
-      if (state.handSize < config.maxHandSize) offers.push({ kind: 'hand', cost: 14, label: 'Bigger Backpack', text: `+1 hand size, max ${config.maxHandSize}` });
-      if (!offers.length) offers.push({ kind: 'gold', cost: 0, label: 'Window shopping', text: 'Nothing useful today' });
+      if (state.hp < state.maxHp) offers.push({ kind: 'heal', icon: '🍲', cost: 6, label: 'Soup and Bandages', text: 'Heal 6 HP', sold: false });
+      if (state.handSize < config.maxHandSize) offers.push({ kind: 'hand', icon: '🎒', cost: 14, label: 'Bigger Backpack', text: 'Hand +1', detail: `Increase hand from ${state.handSize} to ${state.handSize + 1}`, sold: false });
+      if (!offers.length) offers.push({ kind: 'gold', icon: '🪟', cost: 0, label: 'Window shopping', text: 'Nothing useful today', sold: true });
       state.shopOffers = offers;
       return offers;
+    }
+
+    function rerollShop() {
+      const cost = state.shopRerollCost;
+      if (state.gold < cost) return false;
+      state.gold -= cost;
+      state.shopRerollCost += config.shopRerollCostStep;
+      state.stats.shopRerolls++;
+      makeShopOffers(false);
+      setReward(`Rerolled the shop for ${cost} gold. Next reroll costs ${state.shopRerollCost}. You have ${state.gold} gold.`);
+      return true;
     }
 
     function attack() {
@@ -375,7 +402,7 @@
       }
       const best = bestAttack(cards);
       if (!best) {
-        log('No valid combo in those cards. Try a Match, Sequence, Flush, or stacked combo like Sequence + Flush.');
+        log('Those cards could not be scored. Try selecting them again.');
         return { ok: false };
       }
 
@@ -403,8 +430,11 @@
       const overkill = attackDamage - previousHp;
       log(`Success: ${Rules.comboName(best.traits)} deals ${attackDamage} and defeats ${state.enemy.name} (${previousHp}/${state.enemy.maxHp} HP left). Played ${playedCount}.`);
       const defeatedBoss = state.enemy.boss;
+      const weaknessFinish = best.breakdown.weaknessBonus > 0;
       state.lastReward = '';
       cleanVictoryBonus(overkill, defeatedBoss, state.enemy.finalBoss);
+      overkillVictoryBonus(overkill, defeatedBoss);
+      if (weaknessFinish) weaknessFinishBonus();
       state.defeated++;
       fillHand();
       const drawn = state.hand.length - beforeDraw;
@@ -413,15 +443,12 @@
       let modal = null;
       if (state.defeated === config.finalEncounter && defeatedBoss) {
         state.finalDefeated = true;
-        state.regroupAvailable = true;
         state.gold += 40;
         setReward('Final boss defeated: you win the Forest Crown and 40 gold.', true);
         advanceEnemy();
         log(`The path opens beyond the forest. A new enemy appears: ${state.enemy.name}.`);
         modal = 'victory';
       } else if (defeatedBoss) {
-        state.regroupAvailable = true;
-        log('Regroup recharged: you can swap one card before the next boss.');
         addGold(12 + Math.floor(state.defeated / 5) * 3 + (state.equipment.item.goldBonus || 0), 'Boss purse', true);
         if (state.equipment.item.healAfterBoss) state.hp = Math.min(state.maxHp, state.hp + state.equipment.item.healAfterBoss);
         advanceEnemy();
@@ -430,7 +457,8 @@
         modal = 'shop';
       } else {
         addGold(2 + Math.floor(random() * 3) + (state.equipment.item.goldBonus || 0), 'Monster loot', true);
-        if (random() < config.monsterEquipmentDropChance) {
+        const treasureChance = config.monsterEquipmentDropChance + (overkill >= config.overkillThreshold ? config.overkillTreasureBonus : 0);
+        if (random() < treasureChance) {
           const item = makeRewardItem('monster');
           if (item) {
             state.pendingReward = item;
@@ -440,15 +468,14 @@
         advanceEnemy();
         log(`A new enemy appears: ${state.enemy.name}.`);
       }
-      return { ok: true, lethal: true, modal, drawn, best };
+      return { ok: true, lethal: true, modal, drawn, best, overkill, weaknessFinish };
     }
 
     function discardSelected() {
       if (state.gameOver) return { ok: false };
       const cards = selectedCards();
-      const emergency = !state.regroupAvailable && !hasAnyAttack();
-      if (!state.regroupAvailable && !emergency) {
-        log('Regroup is spent. It recharges after the next boss.');
+      if (state.regroupTokens <= 0) {
+        log('Your Swap bank is empty. Earn a token by defeating an enemy with its weakness.');
         return { ok: false, reason: 'spent' };
       }
       if (cards.length !== 1) {
@@ -459,20 +486,11 @@
       state.discard.push(cards[0]);
       state.hand = state.hand.filter(card => !state.selected.includes(card.id));
       state.selected = [];
+      state.regroupTokens--;
       const drawn = drawUpTo(1 + (state.equipment.item.extraDiscardDraw || 0));
-      if (emergency) {
-        log(`Emergency swap: replaced 1 card with ${drawn}. No valid attack was available.`);
-        raiseTemper('an emergency swap');
-      } else {
-        state.regroupAvailable = false;
-        log(`Regroup: replaced 1 card with ${drawn}. Charge spent until the next boss is defeated.`);
-      }
-      const retaliation = enemyAttack(
-        emergency ? 'an emergency swap' : 'Regrouping',
-        emergency ? 1 : 0.5,
-        emergency ? 0 : state.equipment.armor.discardBlock || 0
-      );
-      return { ok: true, emergency, drawn, modal: retaliation.modal };
+      log(`Regroup: replaced 1 card with ${drawn}. Swap bank: ${state.regroupTokens}/${config.maxRegroupTokens}.`);
+      const retaliation = enemyAttack('Regrouping', 0.5, state.equipment.armor.discardBlock || 0);
+      return { ok: true, drawn, modal: retaliation.modal };
     }
 
     function equipPendingReward() {
@@ -494,7 +512,7 @@
 
     function buyShopOffer(index) {
       const offer = state.shopOffers[index];
-      if (!offer || state.gold < offer.cost) return false;
+      if (!offer || offer.sold || state.gold < offer.cost) return false;
       state.gold -= offer.cost;
       if (offer.kind === 'gear') applyEquipmentItem(offer.item);
       if (offer.kind === 'heal') {
@@ -512,7 +530,7 @@
           setReward(`Bought Bigger Backpack. Hand size is now ${state.handSize}/${config.maxHandSize}.`);
         }
       }
-      makeShopOffers();
+      offer.sold = true;
       return true;
     }
 
@@ -547,11 +565,11 @@
       setSortMode,
       selectedCards,
       bestAttack,
-      hasAnyAttack,
       scoreCards,
       equipPendingReward,
       sellPendingReward,
       buyShopOffer,
+      rerollShop,
       makeShopOffers,
       itemDescription,
       itemStats,

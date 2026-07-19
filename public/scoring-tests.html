@@ -40,6 +40,11 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   }
 
   const score = (cards, options) => Rules.scoreCombo(cards, options);
+  assertEqual('one card is a 1-damage Basic Hit', score([card(8)]).total, 1);
+  assertEqual('two non-combo cards are a 2-damage Basic Hit', score([card(1, 'red'), card(3, 'blue')]).total, 2);
+  assertEqual('non-combo cards are named Basic Hit', Rules.comboName(score([card(1, 'red'), card(3, 'blue')]).traits), 'Basic Hit');
+  assertEqual('flat gear bonuses apply to Basic Hits', score([card(1, 'red'), card(3, 'blue')], { weapon: { damageBonus: 2 }, item: { damageBonus: 3 } }).total, 7);
+  assertEqual('final boss curse does not reduce Basic Hits', score([card(1, 'red'), card(3, 'blue')], { finalBoss: true }).total, 2);
   assertEqual('pair is a match combo', Rules.isMatchCombo([card(2, 'red'), card(2, 'blue')]), true);
   assertEqual('pair match score', score([card(2, 'red'), card(2, 'blue')]).total, 9);
   assertEqual('1-2-3 is a sequence combo', Rules.isSequenceCombo([card(1), card(2, 'blue'), card(3, 'green')]), true);
@@ -81,28 +86,36 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   regroup.state.selected = regroup.state.hand.slice(0, 2).map(item => item.id);
   const multiRegroup = regroup.discardSelected();
   assertEqual('Regroup rejects more than one selected card', multiRegroup.reason, 'select-one');
-  assertEqual('rejected Regroup preserves its charge', regroup.state.regroupAvailable, true);
+  assertEqual('rejected Regroup preserves its token', regroup.state.regroupTokens, 1);
   regroup.state.selected = [regroup.state.hand[0].id];
   const firstRegroup = regroup.discardSelected();
   assertEqual('Regroup swaps exactly one card', firstRegroup.drawn, 1);
-  assertEqual('Regroup spends the chapter charge', regroup.state.regroupAvailable, false);
+  assertEqual('Regroup spends one banked token', regroup.state.regroupTokens, 0);
   assertEqual('Regroup takes half-strength hit', regroup.state.stats.damageTaken, 2);
   assertEqual('Regroup does not raise Temper', regroup.state.enemy.temper, 0);
   regroup.state.selected = [regroup.state.hand[0].id];
   const spentRegroup = regroup.discardSelected();
-  assertEqual('spent Regroup is unavailable while a valid attack exists', spentRegroup.reason, 'spent');
+  assertEqual('empty Swap bank prevents another Regroup', spentRegroup.reason, 'spent');
 
-  const emergency = GameState.createGame('EMERGENCY-REGROUP');
-  emergency.state.hand = [card(1, 'red'), card(3, 'blue'), card(5, 'green'), card(7, 'purple'), card(8, 'red')];
-  emergency.state.deck = [card(2, 'blue')];
-  emergency.state.regroupAvailable = false;
-  emergency.state.enemy.damage = 2;
-  emergency.state.selected = [emergency.state.hand[0].id];
-  assertEqual('no-combo hand is detected', emergency.hasAnyAttack(), false);
-  const emergencyResult = emergency.discardSelected();
-  assertEqual('spent charge permits emergency swap only when stuck', emergencyResult.emergency, true);
-  assertEqual('emergency swap raises Temper', emergency.state.enemy.temper, 1);
-  assertEqual('emergency swap takes full attack after Temper', emergency.state.stats.damageTaken, 3);
+  const weaknessFinish = GameState.createGame('WEAKNESS-FINISH');
+  weaknessFinish.state.hand = [card(2, 'red'), card(2, 'blue'), card(5), card(6), card(8)];
+  weaknessFinish.state.deck = [card(1), card(3)];
+  weaknessFinish.state.selected = weaknessFinish.state.hand.slice(0, 2).map(item => item.id);
+  weaknessFinish.state.enemy = { name: 'Weak Test', boss: false, finalBoss: false, weakness: 'match', hp: 13, maxHp: 13, damage: 1, temper: 0, crownCrackReduction: 0 };
+  const weaknessResult = weaknessFinish.attack();
+  assertEqual('weakness lethal is reported separately', weaknessResult.weaknessFinish, true);
+  assertEqual('Weakness Finish banks one Swap token', weaknessFinish.state.regroupTokens, 2);
+  assertEqual('Weakness Finish is tracked', weaknessFinish.state.stats.weaknessFinishes, 1);
+
+  const overkill = GameState.createGame('BIG-OVERKILL');
+  overkill.state.hand = [card(2, 'red'), card(2, 'blue'), card(5), card(6), card(8)];
+  overkill.state.deck = [card(1), card(3)];
+  overkill.state.selected = overkill.state.hand.slice(0, 2).map(item => item.id);
+  overkill.state.enemy = { name: 'Tiny Test', boss: false, finalBoss: false, weakness: 'flush', hp: 1, maxHp: 1, damage: 1, temper: 0, crownCrackReduction: 0 };
+  const overkillResult = overkill.attack();
+  assertEqual('four-plus excess damage is Big Overkill', overkillResult.overkill >= Rules.config.overkillThreshold, true);
+  assertEqual('Big Overkill is tracked', overkill.state.stats.overkillVictories, 1);
+  assertEqual('Big Overkill reward is shown', overkill.state.lastReward.includes('Big Overkill'), true);
 
   const defeat = GameState.createGame('DEFEAT');
   defeat.state.hp = 1;
@@ -122,6 +135,25 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   assertEqual('gear comparison identifies a clear upgrade', comparisonGame.compareEquipment(balancedBlade, trainingSword).verdict, 'better');
   assertEqual('gear comparison identifies a clear downgrade', comparisonGame.compareEquipment(trainingSword, balancedBlade).verdict, 'worse');
   assertEqual('gear comparison identifies a trade-off', comparisonGame.compareEquipment(matchAxe, sequenceBow).verdict, 'different');
+  const shop = GameState.createGame('PERSISTENT-SHOP');
+  shop.state.gold = 100;
+  shop.state.hp = shop.state.maxHp - 2;
+  shop.makeShopOffers();
+  const originalShelf = shop.state.shopOffers;
+  const originalHandSize = shop.state.handSize;
+  const backpackIndex = originalShelf.findIndex(offer => offer.kind === 'hand');
+  assertEqual('Bigger Backpack has its own icon', originalShelf[backpackIndex].icon, '🎒');
+  assertEqual('Bigger Backpack says Hand +1', originalShelf[backpackIndex].text, 'Hand +1');
+  shop.buyShopOffer(backpackIndex);
+  assertEqual('purchasing keeps the same shop shelf', shop.state.shopOffers, originalShelf);
+  assertEqual('purchased offer is marked sold', shop.state.shopOffers[backpackIndex].sold, true);
+  assertEqual('Backpack increases hand size by one', shop.state.handSize, originalHandSize + 1);
+  const beforeRerollGold = shop.state.gold;
+  assertEqual('first shop reroll costs 4 gold', shop.state.shopRerollCost, 4);
+  shop.rerollShop();
+  assertEqual('reroll deducts its displayed cost', shop.state.gold, beforeRerollGold - 4);
+  assertEqual('next shop reroll price rises to 6', shop.state.shopRerollCost, 6);
+  assertEqual('shop rerolls are tracked', shop.state.stats.shopRerolls, 1);
   assertEqual('zero Clean Victories cause zero Crown Cracks', Rules.crownCrackReduction(0), 0);
   assertEqual('five Clean Victories remove 10 final-boss HP', Rules.crownCrackReduction(5), 10);
   assertEqual('Crown Cracks cap at 12 HP', Rules.crownCrackReduction(99), 12);
@@ -132,13 +164,13 @@ pre { white-space: pre-wrap; border: 1px solid #d9c49a; background: #fff8e8; pad
   crown.state.hand = [card(2, 'red'), card(2, 'blue'), card(5), card(6), card(8)];
   crown.state.deck = [card(1), card(3), card(4)];
   crown.state.selected = crown.state.hand.slice(0, 2).map(item => item.id);
-  crown.state.regroupAvailable = false;
+  crown.state.regroupTokens = 0;
   crown.state.enemy = { name: 'Boss Test', boss: true, finalBoss: false, weakness: 'sequence', hp: 9, maxHp: 9, damage: 1, temper: 0, crownCrackReduction: 0 };
   crown.attack();
   assertEqual('boss Clean Victory advances to final boss', crown.state.enemy.finalBoss, true);
   assertEqual('five Clean Victories reduce final boss from 72 to 62 HP', crown.state.enemy.maxHp, 62);
   assertEqual('final boss records Crown Crack reduction', crown.state.enemy.crownCrackReduction, 10);
-  assertEqual('defeating a boss recharges Regroup', crown.state.regroupAvailable, true);
+  assertEqual('boss defeat does not automatically refill Swap bank', crown.state.regroupTokens, 0);
 
   const passed = results.filter(Boolean).length;
   const failed = results.length - passed;

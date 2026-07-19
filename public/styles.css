@@ -49,6 +49,9 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .stats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .stat { background: rgba(36,32,28,0.82); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; color: var(--muted); font-size:0.9rem; }
 .stat strong { color: var(--text); }
+.money-stat { border-color:var(--gold); background:linear-gradient(135deg,rgba(226,180,92,0.24),rgba(36,32,28,0.88)); color:var(--gold); font-size:1rem; box-shadow:0 0 0 3px rgba(226,180,92,0.07); }
+.money-stat strong { color:#fff1bd; }
+.swap-stat { border-color:#7d6aa0; background:rgba(178,132,216,0.10); }
 .grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr); gap: 14px; align-items:start; }
 .info-grid { display:grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr); gap:14px; margin-top:14px; align-items:start; }
 .info-main { grid-column: 1; }
@@ -77,7 +80,13 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .card { width: 78px; height: 116px; border-radius: 14px; border: 2px solid var(--border); background: linear-gradient(160deg, #f7ebd1, #d9c49a); color: #211b14; display: flex; flex-direction: column; justify-content: space-between; padding: 9px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.25); user-select: none; position: relative; overflow: hidden; }
 .card.selected { outline: 4px solid var(--gold); transform: translateY(-5px); }
 .card.weakness-hit { outline-color:#ffe08a; box-shadow:0 0 0 4px rgba(255,224,138,0.18), 0 10px 26px rgba(226,180,92,0.55); animation:weaknessJiggle 620ms ease-in-out; }
-.weakness-tag { align-self:center; border-radius:999px; padding:3px 7px; background:#2f5f35; color:#fff8d8; font-size:0.76rem; font-weight:950; box-shadow:0 2px 5px rgba(0,0,0,0.22); }
+.card.finisher-ready { outline-color:#b8ef91; box-shadow:0 0 0 5px rgba(131,179,107,0.23),0 10px 28px rgba(131,179,107,0.6); }
+.card.finisher-ready::after { content:'💀'; position:absolute; top:5px; right:6px; font-size:1rem; animation:finisherPulse 650ms ease-in-out infinite alternate; }
+.card.weakness-hit.finisher-ready { outline-color:#fff0a6; box-shadow:0 0 0 4px rgba(255,224,138,0.23),0 0 0 8px rgba(131,179,107,0.18),0 12px 30px rgba(226,180,92,0.58); }
+.card-tags { display:flex; flex-direction:column; align-items:center; gap:4px; min-height:24px; }
+.weakness-tag, .finisher-tag { border-radius:999px; padding:3px 7px; color:#fff8d8; font-size:0.7rem; font-weight:950; box-shadow:0 2px 5px rgba(0,0,0,0.22); white-space:nowrap; }
+.weakness-tag { background:#2f5f35; }
+.finisher-tag { background:#70352f; }
 .card .num { font-size: 2rem; font-weight: 950; }
 .card.red { background: linear-gradient(160deg, #ffe3dd, #d9877a); }
 .card.green { background: linear-gradient(160deg, #e8f4d4, #9ec177); }
@@ -86,12 +95,15 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .score-preview { margin-top: 10px; border: 1px solid var(--border); border-radius: 14px; padding: 10px; color: var(--muted); background: rgba(0,0,0,0.16); line-height: 1.35; }
 .score-preview strong { color: var(--text); }
 .weakness-hit-banner { border:2px solid var(--gold); border-radius:12px; padding:8px 10px; margin-bottom:10px; background:linear-gradient(90deg,rgba(226,180,92,0.28),rgba(131,179,107,0.18)); color:#fff2c4; font-weight:950; letter-spacing:0.03em; animation:bonusPop 520ms ease-out; }
+.finisher-banner { border:2px solid var(--green); border-radius:12px; padding:8px 10px; margin-bottom:10px; background:linear-gradient(90deg,rgba(131,179,107,0.23),rgba(217,107,95,0.18)); color:#e8ffd5; font-weight:950; letter-spacing:0.03em; animation:finisherBanner 620ms ease-in-out 2 alternate; }
 .score-breakdown-label { margin-top:10px; color:var(--muted); font-size:0.75rem; text-transform:uppercase; font-weight:900; letter-spacing:0.1em; }
 .forecast { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
 .forecast-item { border:1px solid var(--border); background:rgba(255,255,255,0.04); border-radius:8px; padding:8px; }
 .forecast-item span { display:block; color:var(--muted); font-size:0.78rem; text-transform:uppercase; font-weight:800; }
 .forecast-item strong { display:block; margin-top:2px; }
 .clean-forecast { color:var(--gold); font-weight:900; margin-top:9px; }
+.overkill-forecast { color:#f0a89e; font-weight:900; margin-top:9px; }
+.swap-forecast { color:#cfa7ef; font-weight:900; margin-top:9px; }
 .score-big { display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
 .score-number { font-size:2rem; font-weight:950; color:var(--gold); line-height:1; }
 .score-formula { display:grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap:8px; margin-top:8px; }
@@ -101,6 +113,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .score-part.weakness { border-color:var(--gold); background:rgba(226,180,92,0.14); }
 .score-part.weakness b { color:var(--gold); }
 .score-part.gear { border-color:#6f92b2; background:rgba(111,169,216,0.10); }
+.score-part.basic { border-color:#827666; background:rgba(185,169,143,0.09); }
 .curse-note { margin-top:8px; color:var(--red); font-weight:800; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .combat-actions { margin-top: 10px; margin-bottom: 10px; }
@@ -114,6 +127,8 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .run-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .summary-stat { border:1px solid var(--border); border-radius:8px; padding:8px; background:rgba(0,0,0,0.14); color:var(--muted); }
 .summary-stat strong { display:block; color:var(--text); font-size:1.05rem; }
+.money-summary { border-color:var(--gold); background:rgba(226,180,92,0.10); }
+.money-summary strong { color:var(--gold); }
 .summary-seed { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .summary-seed code { color:var(--gold); font-weight:900; overflow-wrap:anywhere; }
 .summary-seed button { padding:7px 10px; flex:0 0 auto; }
@@ -143,14 +158,23 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 .comparison-change.loss strong { color:var(--red); }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.68); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
 .modal.show { display:flex; }
-.modal-card { width:min(560px, 100%); border:2px solid var(--gold); border-radius:20px; background:linear-gradient(160deg,#302a24,#1f1b18); padding:20px; box-shadow:0 24px 80px rgba(0,0,0,0.5); }
+.modal-card { width:min(560px, 100%); max-height:calc(100vh - 24px); overflow:auto; border:2px solid var(--gold); border-radius:20px; background:linear-gradient(160deg,#302a24,#1f1b18); padding:20px; box-shadow:0 24px 80px rgba(0,0,0,0.5); }
 .modal-card h2 { margin:0 0 8px; color:var(--gold); }
 .modal-card p { color:var(--muted); line-height:1.45; }
 .modal-actions { display:grid; gap:10px; margin-top:14px; }
 .shop-offer { border:1px solid var(--border); border-radius:14px; padding:10px; background:rgba(255,255,255,0.04); }
 .shop-offer button { width:100%; margin-top:8px; }
 .shop-offer .gear-card { min-height:auto; }
-.shop-price { color:var(--gold); font-weight:900; margin-top:8px; }
+.shop-offer.sold { opacity:0.52; }
+.shop-special { display:flex; gap:10px; align-items:center; border:1px solid var(--border); border-radius:14px; padding:10px; background:rgba(0,0,0,0.14); }
+.shop-special.backpack-offer { border:2px solid var(--gold); background:linear-gradient(135deg,rgba(226,180,92,0.21),rgba(178,132,216,0.10)); box-shadow:0 0 0 4px rgba(226,180,92,0.06); }
+.shop-special.backpack-offer .gear-icon { width:58px; height:58px; font-size:2.5rem; }
+.special-effect { color:var(--gold); font-size:1.25rem; font-weight:950; }
+.special-detail { color:var(--muted); font-size:0.8rem; font-weight:750; }
+.shop-wallet { display:flex; justify-content:space-between; align-items:center; gap:14px; border:2px solid var(--gold); border-radius:14px; padding:10px 12px; margin:10px 0; background:linear-gradient(135deg,rgba(226,180,92,0.25),rgba(0,0,0,0.18)); color:var(--gold); font-weight:900; }
+.shop-wallet strong { color:#fff1bd; font-size:2rem; line-height:1; }
+.reroll-btn { border-color:#7d6aa0; background:rgba(178,132,216,0.14); }
+.reroll-btn small { display:block; color:var(--muted); font-weight:600; margin-top:3px; }
 .boss-track { display:flex; gap:5px; align-items:center; margin-top:4px; }
 .boss-dot { width:10px; height:10px; border-radius:999px; border:1px solid var(--border); background:#1f1b18; }
 .boss-dot.done { background:var(--gold); border-color:var(--gold); }
@@ -161,6 +185,8 @@ h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; wh
 @keyframes hpShake { 0%,100% { transform:translateX(0); } 15% { transform:translateX(-9px); } 30% { transform:translateX(9px); } 45% { transform:translateX(-7px); } 60% { transform:translateX(7px); } 75% { transform:translateX(-3px); } }
 @keyframes weaknessJiggle { 0%,100% { transform:translateY(-5px) rotate(0); } 20% { transform:translateY(-7px) rotate(-3deg); } 40% { transform:translateY(-5px) rotate(3deg); } 60% { transform:translateY(-7px) rotate(-2deg); } 80% { transform:translateY(-5px) rotate(2deg); } }
 @keyframes bonusPop { 0% { transform:scale(0.96); opacity:0.55; } 65% { transform:scale(1.02); opacity:1; } 100% { transform:scale(1); } }
+@keyframes finisherPulse { 0%,100% { box-shadow:0 0 0 3px rgba(217,107,95,0.30),0 12px 24px rgba(0,0,0,0.28); } 50% { box-shadow:0 0 0 7px rgba(217,107,95,0.12),0 0 26px rgba(217,107,95,0.55); } }
+@keyframes finisherBanner { 0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(131,179,107,0); } 50% { transform:scale(1.025); box-shadow:0 0 0 5px rgba(131,179,107,0.18),0 0 22px rgba(217,107,95,0.25); } }
 .final-track { margin-top:8px; }
 .final-bar { height:10px; border:1px solid var(--border); border-radius:999px; background:#1f1b18; overflow:hidden; margin-top:5px; }
 .final-fill { height:100%; background:linear-gradient(90deg, var(--gold), var(--red)); }

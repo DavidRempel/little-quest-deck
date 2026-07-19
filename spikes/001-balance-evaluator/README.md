@@ -25,9 +25,9 @@ The evaluator imports `public/rules.js` and `public/game-state.js` directly. It 
 
 ## Policies
 
-- `random-valid`: chooses a random valid attack, sometimes spending the chapter's one-card Regroup.
+- `random-valid`: chooses a random valid attack, sometimes spending a banked one-card Regroup.
 - `max-score`: always plays the legal subset with the highest immediate damage.
-- `heuristic`: prioritizes lethal Clean Victories, efficient damage, and the limited one-card Regroup when the current hand is weak.
+- `heuristic`: prioritizes lethal Clean Victories, efficient damage, and a banked one-card Regroup when the current hand is weak.
 - `lookahead`: compares a bounded set of attacks and discards using immediate damage, survival, and sampled next-hand potential.
 
 ## Variants
@@ -43,9 +43,22 @@ The deck editor is intentionally an optimistic automated player. Its result is a
 
 ## Status
 
-Production build evaluated: `v4.28-clear-gear`.
+Production build evaluated: `v4.29-finisher-bank`.
 
 The results below are the pre-implementation evidence used to choose Crown Cracks. Starting with `v4.27-crown-cracks`, the CLI's `baseline` includes the live 2-HP-per-Clean-Victory mechanic; use `no-crown` for the old 72-HP comparison.
+
+### v4.29 Basic Hit and Swap-bank regression
+
+The production baseline now allows any selected cards to make a 1-damage-per-card Basic Hit. Weakness Finishes earn banked single-card Swaps, Big Overkills earn gold and improve treasure odds, and shop purchases persist. The first three policies use 1,000 matched seeds; lookahead uses 100 because its temporary subset scoring still approaches Node's default memory ceiling at 200.
+
+| Policy | Win rate | Final-boss reach | Mean Swaps |
+|---|---:|---:|---:|
+| Random-valid | 3.3% | 14.6% | 1.7 |
+| Max score | 19.9% | 57.8% | 0.0 |
+| Heuristic | 30.8% | 62.4% | 3.7 |
+| Lookahead | 48.0% | 77.0% | 2.3 |
+
+Basic Hits remove dead hands without making random play strong. The gap between immediate-score, heuristic, and lookahead policies grows, which is a good signal that saving Swaps and choosing efficient finishers add meaningful decisions. Family play should still determine whether the run is too demanding for the intended age range.
 
 ### v4.28 limited-Regroup regression
 
@@ -84,7 +97,7 @@ The edit families are in the same broad power range, although rank shifting is s
 
 ### Stress finding
 
-The first lookahead implementation allowed repeated post-Regroup discards. Some seeds produced long discard loops and eventually exhausted Node's heap. Production now allows one one-card Regroup per boss chapter, plus an Emergency Swap only when no valid attack exists. The evaluator imports and follows that state directly, and its candidate generator considers only legal one-card swaps.
+The first lookahead implementation allowed repeated post-Regroup discards. Some seeds produced long discard loops and eventually exhausted Node's heap. Production now uses a finite bank of single-card Swaps earned by Weakness Finishes, and its candidate generator considers only legal one-card swaps. The current lookahead scorer is still allocation-heavy at 200 matched seeds under Node's default heap; use 100 runs or a larger heap until its temporary subset scoring is optimized.
 
 ## Verdict: VALIDATED — production-linked evaluator
 

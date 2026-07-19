@@ -55,6 +55,11 @@
     return `<div class="gear-comparison ${comparison.verdict}"><div class="comparison-badge">${comparison.label}</div>${changes}</div>`;
   }
 
+  function specialOfferCard(offer) {
+    const standout = offer.kind === 'hand' ? ' backpack-offer' : '';
+    return `<div class="shop-special${standout}"><div class="gear-icon" aria-hidden="true">${offer.icon || '🎁'}</div><div><div class="gear-eyebrow">${offer.kind === 'hand' ? 'Permanent upgrade' : 'Supply'}</div><div class="gear-name">${offer.label}</div><div class="special-effect">${offer.text}</div>${offer.detail ? `<div class="special-detail">${offer.detail}</div>` : ''}</div></div>`;
+  }
+
   function openRewardChoice() {
     const { state } = game;
     const item = state.pendingReward;
@@ -80,17 +85,25 @@
   function openShop() {
     const { state } = game;
     const offers = state.shopOffers.map((offer, index) => {
-      const disabled = offer.kind === 'gold' || state.gold < offer.cost ? 'disabled' : '';
+      const disabled = offer.sold || offer.kind === 'gold' || state.gold < offer.cost ? 'disabled' : '';
       const content = offer.kind === 'gear'
         ? `${gearCard(offer.item, `New ${slotLabel(offer.item.slot)}`)}${comparisonHtml(offer.item, state.equipment[offer.item.slot])}`
-        : `<strong>${offer.label}</strong><div>${offer.text}</div>`;
-      return `<div class="shop-offer">${content}<div class="shop-price">${offer.cost} gold</div><button ${disabled} onclick="buyShopOffer(${index})">${offer.kind === 'gold' ? 'Sold out' : 'Buy'}</button></div>`;
+        : specialOfferCard(offer);
+      const buttonText = offer.sold ? 'Sold' : `Buy · ${offer.cost} gold`;
+      return `<div class="shop-offer${offer.sold ? ' sold' : ''}">${content}<button ${disabled} onclick="buyShopOffer(${index})">${buttonText}</button></div>`;
     }).join('');
-    showModal(`<h2>🛒 Roadside Supply Store</h2><p>The boss drops a purse and a suspiciously well-placed shop appears. Gold: <strong>${state.gold}</strong></p><div class="modal-actions">${offers}<button onclick="leaveShop()">Leave shop</button></div>`);
+    const rerollDisabled = state.gold < state.shopRerollCost ? 'disabled' : '';
+    showModal(`<h2>🛒 Roadside Supply Store</h2><div class="shop-wallet"><span>🪙 Your gold</span><strong>${state.gold}</strong></div><p>Buy what you want; purchased cards stay sold. Only a paid reroll changes the shelf.</p><div class="modal-actions">${offers}<button class="reroll-btn" ${rerollDisabled} onclick="rerollShop()">🔄 Reroll stock · ${state.shopRerollCost} gold<small>Next reroll costs ${state.shopRerollCost + config.shopRerollCostStep}</small></button><button onclick="leaveShop()">Leave shop with ${state.gold} gold</button></div>`);
   }
 
   function buyShopOffer(index) {
     if (!game.buyShopOffer(index)) return;
+    openShop();
+    render();
+  }
+
+  function rerollShop() {
+    if (!game.rerollShop()) return;
     openShop();
     render();
   }
@@ -154,9 +167,9 @@
       : '';
     const weakness = state.enemy.weakness;
     const weaknessBadge = `<div class="weakness-badge ${weakness}"><span>${config.weaknessIcon[weakness]}</span><div><small>Weak to</small><strong>${config.weaknessLabel[weakness]}</strong><em>×1.5 base score</em></div></div>`;
-    const regroupText = state.regroupAvailable
-      ? '<strong>Regroup ready:</strong> swap exactly 1 card; one charge until the next boss.'
-      : '<strong>Regroup spent:</strong> recharges after the next boss. Emergency Swap appears only if no valid attack exists.';
+    const regroupText = state.regroupTokens > 0
+      ? `<strong>Swap bank:</strong> ${state.regroupTokens}/${config.maxRegroupTokens}. Spend 1 to Regroup a single card; weakness finishes earn more.`
+      : `<strong>Swap bank empty:</strong> finish an enemy with its weakness to earn a single-card Regroup.`;
 
     document.getElementById('enemy').innerHTML = `<div class="name">${state.enemy.finalBoss ? '👑🔥 ' : state.enemy.boss ? '👑 ' : ''}${state.enemy.name}</div><div class="line">Monster HP: <strong>${state.enemy.hp}/${state.enemy.maxHp}</strong></div>${weaknessBadge}<div class="temper-row"><span>Temper</span><strong>${state.enemy.temper || 0}/${config.maxTemper}</strong><div class="temper-pips">${[1, 2, 3].map(index => `<span class="temper-pip ${index <= (state.enemy.temper || 0) ? 'hot' : ''}"></span>`).join('')}</div></div><div class="line">Attack: <strong>${damage} HP</strong>${state.enemy.temper ? ` (base ${state.enemy.damage} + Temper ${state.enemy.temper})` : ''}${blocked ? ` after armor blocks ${blocked}` : ''}.</div><div class="line">A partial attack raises Temper first, then this monster hits for <strong>${nextDamage} HP</strong>${blocked ? ' after armor' : ''}.</div><div class="line regroup-status">${regroupText}</div><div class="line">${bossText}</div>${crownText}<div class="boss-track" title="Boss every 5 encounters">${dots}</div><div class="final-track"><div class="line">${toFinal}</div><div class="final-bar"><div class="final-fill" style="width:${finalProgress}%"></div></div></div>`;
   }
@@ -166,16 +179,18 @@
     const hand = document.getElementById('hand');
     const selectedBest = game.bestAttack();
     const weaknessHot = !!selectedBest && selectedBest.traits.includes(state.enemy.weakness);
+    const finisherHot = !!selectedBest && selectedBest.total >= state.enemy.hp;
     hand.innerHTML = '';
     state.hand.forEach(card => {
       const element = document.createElement('div');
       const selected = state.selected.includes(card.id);
-      element.className = `card ${card.color}${selected ? ' selected' : ''}${selected && weaknessHot ? ' weakness-hit' : ''}`;
+      element.className = `card ${card.color}${selected ? ' selected' : ''}${selected && weaknessHot ? ' weakness-hit' : ''}${selected && finisherHot ? ' finisher-ready' : ''}`;
       element.onclick = () => {
         game.toggleCard(card.id);
         render();
       };
-      element.innerHTML = `<div class="num">${card.n}</div>${selected && weaknessHot ? '<div class="weakness-tag">×1.5!</div>' : '<div></div>'}`;
+      const tags = `${selected && weaknessHot ? '<span class="weakness-tag">×1.5!</span>' : ''}${selected && finisherHot ? '<span class="finisher-tag">LETHAL</span>' : ''}`;
+      element.innerHTML = `<div class="num">${card.n}</div><div class="card-tags">${tags}</div>`;
       hand.appendChild(element);
     });
   }
@@ -185,7 +200,7 @@
     const cards = game.selectedCards();
     const preview = document.getElementById('scorePreview');
     if (!cards.length) {
-      preview.innerHTML = 'Select cards. Attack will automatically score the best valid combo.';
+      preview.innerHTML = 'Select any cards. A Match, Sequence, or Flush uses its combo score; cards with no combo make a Basic Hit for 1 damage each.';
       return;
     }
     const best = game.bestAttack(cards);
@@ -200,6 +215,8 @@
     const nextTemper = Math.min(config.maxTemper, state.enemy.temper + 1);
     const retaliation = Math.max(0, state.enemy.damage + nextTemper - (state.equipment.armor.reduction || 0));
     const clean = lethal && best.margin >= 0 && best.margin <= 3;
+    const bigOverkill = lethal && best.margin >= config.overkillThreshold;
+    const weaknessFinish = lethal && best.breakdown.weaknessBonus > 0;
     const crownBefore = Rules.crownCrackReduction(state.stats.cleanVictories);
     const crownAfter = Rules.crownCrackReduction(state.stats.cleanVictories + 1);
     const crownAdded = !state.finalDefeated && !state.enemy.finalBoss ? crownAfter - crownBefore : 0;
@@ -207,6 +224,7 @@
     const verdict = `${Rules.comboName(best.traits)}: <strong>${best.total}</strong> vs ${state.enemy.hp}/${state.enemy.maxHp} HP — ${best.margin >= 0 ? `defeats by ${best.margin}` : `leaves ${leaves} HP`}.`;
     const breakdown = best.breakdown;
     const parts = [];
+    if (breakdown.basic) parts.push(`<div class="score-part basic"><span>Basic · ${cards.length} card${cards.length === 1 ? '' : 's'}</span><b>${breakdown.basic}</b></div>`);
     if (breakdown.match) parts.push(`<div class="score-part"><span>Match</span><b>${breakdown.match}</b></div>`);
     if (breakdown.sequence) parts.push(`<div class="score-part"><span>Sequence</span><b>${breakdown.sequence}</b></div>`);
     if (breakdown.flush) parts.push(`<div class="score-part"><span>Flush</span><b>${breakdown.flush}</b></div>`);
@@ -217,14 +235,21 @@
     const weaknessBanner = breakdown.weaknessBonus
       ? `<div class="weakness-hit-banner">${config.weaknessIcon[state.enemy.weakness]} WEAKNESS HIT! Base ${breakdown.base} becomes ${breakdown.base + breakdown.weaknessBonus}</div>`
       : '';
+    const finisherBanner = lethal ? '<div class="finisher-banner">💀 FINISHER READY · This attack defeats the monster</div>' : '';
     const curseText = breakdown.finalPenalty ? `<div class="curse-note">Final boss curse: this combo scores as ${breakdown.scoreCount} card${breakdown.scoreCount === 1 ? '' : 's'}.</div>` : '';
-    preview.innerHTML = `${weaknessBanner}<div class="score-big"><span class="score-number">${best.total}</span><strong>${Rules.comboName(best.traits)}</strong></div><div>${verdict}</div><div class="score-breakdown-label">Score breakdown</div><div class="score-formula">${parts.join('')}</div>${curseText}<div class="forecast"><div class="forecast-item"><span>Cards after attack</span><strong>${kept} kept, ${drawn} drawn</strong></div><div class="forecast-item"><span>Enemy response</span><strong>${lethal ? 'Defeated' : `${retaliation} damage at Temper ${nextTemper}`}</strong></div></div>${clean ? `<div class="clean-forecast">Clean Victory: +${config.cleanVictoryGold} gold${state.enemy.boss ? ' and heal 1 HP' : ''}${crownForecast}</div>` : ''}`;
+    const overkillForecast = bigOverkill
+      ? `<div class="overkill-forecast">Big Overkill: +${config.overkillGold} gold${state.enemy.boss ? '' : ` and gear chance ${Math.round(config.monsterEquipmentDropChance * 100)}% → ${Math.round((config.monsterEquipmentDropChance + config.overkillTreasureBonus) * 100)}%`}</div>`
+      : '';
+    const weaknessFinishForecast = weaknessFinish
+      ? `<div class="swap-forecast">Weakness Finish: +1 Swap token${state.regroupTokens >= config.maxRegroupTokens ? ' becomes +1 gold because the bank is full' : ` (${state.regroupTokens} → ${Math.min(config.maxRegroupTokens, state.regroupTokens + 1)})`}</div>`
+      : '';
+    preview.innerHTML = `${weaknessBanner}${finisherBanner}<div class="score-big"><span class="score-number">${best.total}</span><strong>${Rules.comboName(best.traits)}</strong></div><div>${verdict}</div><div class="score-breakdown-label">Score breakdown</div><div class="score-formula">${parts.join('')}</div>${curseText}<div class="forecast"><div class="forecast-item"><span>Cards after attack</span><strong>${kept} kept, ${drawn} drawn</strong></div><div class="forecast-item"><span>Enemy response</span><strong>${lethal ? 'Defeated' : `${retaliation} damage at Temper ${nextTemper}`}</strong></div></div>${clean ? `<div class="clean-forecast">Clean Victory: +${config.cleanVictoryGold} gold${state.enemy.boss ? ' and heal 1 HP' : ''}${crownForecast}</div>` : ''}${overkillForecast}${weaknessFinishForecast}`;
   }
 
   function renderRunSummary() {
     const { state } = game;
     const stats = state.stats;
-    document.getElementById('runSummary').innerHTML = `<div class="summary-stat"><strong>${state.defeated}</strong>defeated</div><div class="summary-stat"><strong>${state.hp}/${state.maxHp}</strong>HP left</div><div class="summary-stat"><strong>${stats.attacks}</strong>attacks (${stats.partialAttacks} partial)</div><div class="summary-stat"><strong>${stats.discards}</strong>Regroups</div><div class="summary-stat"><strong>${stats.cleanVictories}</strong>Clean Victories</div><div class="summary-stat"><strong>${stats.biggestCombo}</strong>biggest combo</div><div class="summary-stat"><strong>${stats.damageTaken}</strong>damage taken</div><div class="summary-stat"><strong>${state.gold}</strong>gold</div><div class="summary-stat summary-seed"><div>Seed <code>${state.seed}</code></div><button onclick="copySeed()">Copy Link</button></div>`;
+    document.getElementById('runSummary').innerHTML = `<div class="summary-stat"><strong>${state.defeated}</strong>defeated</div><div class="summary-stat"><strong>${state.hp}/${state.maxHp}</strong>HP left</div><div class="summary-stat"><strong>${stats.attacks}</strong>attacks (${stats.partialAttacks} partial)</div><div class="summary-stat"><strong>${stats.discards}</strong>Swaps spent</div><div class="summary-stat"><strong>${state.regroupTokens}/${config.maxRegroupTokens}</strong>Swap bank</div><div class="summary-stat"><strong>${stats.weaknessFinishes}</strong>Weakness Finishes</div><div class="summary-stat"><strong>${stats.cleanVictories}</strong>Clean Victories</div><div class="summary-stat"><strong>${stats.overkillVictories}</strong>Big Overkills</div><div class="summary-stat"><strong>${stats.biggestCombo}</strong>biggest hit</div><div class="summary-stat"><strong>${stats.damageTaken}</strong>damage taken</div><div class="summary-stat money-summary"><strong>🪙 ${state.gold}</strong>gold</div><div class="summary-stat summary-seed"><div>Seed <code>${state.seed}</code></div><button onclick="copySeed()">Copy Link</button></div>`;
   }
 
   function pills(counts, order) {
@@ -263,8 +288,8 @@
     document.getElementById('encounter').textContent = state.defeated + 1;
     document.getElementById('handCount').textContent = `${state.hand.length}/${state.handSize}`;
     document.getElementById('deckCount').textContent = state.deck.length;
-    document.getElementById('discardCount').textContent = state.discard.length;
-    document.getElementById('goldCount').textContent = state.gold;
+    document.getElementById('discardCount').textContent = `${state.regroupTokens}/${config.maxRegroupTokens}`;
+    document.getElementById('goldCount').textContent = `${state.gold} gold`;
     renderEnemy();
     renderHand();
     renderPreview();
@@ -284,23 +309,24 @@
     const discardButton = document.getElementById('discardBtn');
     const best = game.bestAttack();
     const weaknessHot = !!best && best.traits.includes(state.enemy.weakness) && !state.gameOver;
-    attackButton.innerHTML = weaknessHot
-      ? `💥 Weakness Attack ×1.5<small>${config.weaknessLabel[state.enemy.weakness]} bonus active</small>`
-      : 'Attack <small>auto-best combo</small>';
+    const lethalHot = !!best && best.total >= state.enemy.hp && !state.gameOver;
+    attackButton.innerHTML = lethalHot && weaknessHot
+      ? `💀 Weakness Finisher<small>lethal + ×1.5 + Swap token</small>`
+      : lethalHot
+        ? '💀 Finish<small>this attack defeats the monster</small>'
+        : weaknessHot
+          ? `💥 Weakness Attack ×1.5<small>${config.weaknessLabel[state.enemy.weakness]} bonus active</small>`
+          : 'Attack <small>combo or 1 damage per Basic card</small>';
     attackButton.disabled = state.gameOver;
     attackButton.classList.toggle('attack-ready', !!best && best.total >= state.enemy.hp && !state.gameOver);
     attackButton.classList.toggle('attack-short', !!best && best.total < state.enemy.hp && !state.gameOver);
-    const emergencyRegroup = !state.regroupAvailable && !game.hasAnyAttack();
     const selectedOne = state.selected.length === 1;
-    if (state.regroupAvailable) {
-      discardButton.innerHTML = 'Regroup · 1/1<small>swap exactly 1 card; half hit</small>';
-    } else if (emergencyRegroup) {
-      discardButton.innerHTML = 'Emergency Swap<small>no valid combo; full hit + Temper</small>';
+    if (state.regroupTokens > 0) {
+      discardButton.innerHTML = `Regroup · ${state.regroupTokens} banked<small>spend 1 to swap exactly 1 card; half hit</small>`;
     } else {
-      discardButton.innerHTML = 'Regroup spent<small>recharges after the next boss</small>';
+      discardButton.innerHTML = 'Swap bank empty<small>earn tokens with Weakness Finishes</small>';
     }
-    discardButton.classList.toggle('emergency', emergencyRegroup);
-    discardButton.disabled = state.gameOver || !selectedOne || (!state.regroupAvailable && !emergencyRegroup);
+    discardButton.disabled = state.gameOver || !selectedOne || state.regroupTokens <= 0;
     document.getElementById('clearSelectionBtn').disabled = state.gameOver || !state.selected.length;
   }
 
@@ -326,6 +352,7 @@
   window.equipPendingReward = equipPendingReward;
   window.sellPendingReward = sellPendingReward;
   window.buyShopOffer = buyShopOffer;
+  window.rerollShop = rerollShop;
   window.leaveShop = leaveShop;
 
   document.getElementById('attackBtn').onclick = attack;

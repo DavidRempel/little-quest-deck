@@ -13,7 +13,7 @@
       <h1>Little Quest Deck</h1>
       <details class="about-box">
         <summary>About this build</summary>
-        <div class="subtitle">A stripped-back card-combo prototype. Fight one enemy at a time. Attack with selected cards, spend a limited Regroup to swap one card, or clear your selection without spending a turn. Partial attacks raise enemy Temper before retaliation. Defeating an enemy fully refills your hand. <strong id="buildLabel"></strong></div>
+        <div class="subtitle">A stripped-back card-combo prototype. Build Match, Sequence, and Flush attacks—or submit any cards for a small Basic Hit. Weakness Finishes bank single-card Swaps for later, while precise and overkill victories earn different rewards. <strong id="buildLabel"></strong></div>
       </details>
     </div>
     <div class="stats">
@@ -21,8 +21,8 @@
       <div class="stat">Enemy <strong id="encounter"></strong></div>
       <div class="stat">Hand <strong id="handCount"></strong></div>
       <div class="stat">Deck <strong id="deckCount"></strong></div>
-      <div class="stat">Regroups <strong id="discardCount"></strong></div>
-      <div class="stat">Gold <strong id="goldCount"></strong></div>
+      <div class="stat swap-stat">🃏 Swap Bank <strong id="discardCount"></strong></div>
+      <div class="stat money-stat">🪙 <strong id="goldCount"></strong></div>
       <div class="stat">Build <strong id="buildStat"></strong></div>
     </div>
   </div>
@@ -38,7 +38,7 @@
       </div>
       <div class="actions combat-actions">
         <button class="action-btn" id="attackBtn">Attack <small>auto-best combo</small></button>
-        <button class="action-btn" id="discardBtn">Regroup · 1/1 <small>swap exactly 1 card; half hit</small></button>
+        <button class="action-btn" id="discardBtn">Regroup · 1 banked <small>spend 1 to swap exactly 1 card; half hit</small></button>
         <button class="action-btn" id="clearSelectionBtn">Clear Selection <small>deselect cards</small></button>
       </div>
       <div class="score-preview" id="scorePreview"></div>
@@ -76,22 +76,23 @@
       <details class="rules-box">
         <summary>Rules</summary>
       <ul class="rules">
-        <li><strong>Attack</strong> with selected cards. The game automatically chooses the highest-scoring valid combo: Match, Sequence, or Flush. The score panel shows every part of the total. The Attack button turns green when the selected attack will defeat the enemy, red when it only deals partial damage.</li>
+        <li><strong>Attack</strong> with selected cards. Match, Sequence, and Flush use their combo scores. If the selected cards make no combo, they become a Basic Hit for 1 damage per card. The score panel shows every part of the total. Lethal cards get a separate Finisher animation that stacks with the weakness effect.</li>
         <li>Starting hand size is 5. Hand size can rise to a max of 7.</li>
         <li><strong>Match scores:</strong> Pair 9, Three-kind 27, Four-kind 63. Match groups stack, so two pair = 18 and full house = 36.</li>
         <li><strong>Sequence scores:</strong> 3/4/5/6/7 cards score 15/35/68/120/192.</li>
         <li><strong>Flush scores:</strong> 3/4/5/6/7 cards score 12/28/55/96/154. A straight flush stacks its Sequence and Flush scores.</li>
-        <li><strong>Valid combos:</strong> Match = one or more matching-number groups, including pair, two pair, three/four of a kind, or full house; unmatched selected cards add no Match score. Sequence = 3+ consecutive numbers. Flush = 3+ same colour.</li>
+        <li><strong>Combos:</strong> Match = one or more matching-number groups, including pair, two pair, three/four of a kind, or full house; unmatched selected cards add no Match score. Sequence = 3+ consecutive numbers. Flush = 3+ same colour. A non-combo selection is always a valid Basic Hit.</li>
         <li>Enemy weakness is one broad family: Match, Sequence, or Flush. Matching it multiplies the combo's base score by 1.5 before equipment bonuses. Matching selected cards glow and jiggle so the bonus is hard to miss. Combo bonuses stack; a straight flush gets both Sequence and Flush.</li>
         <li>Enemies have HP. If your attack is less than their total HP, it still knocks their HP down, raises Temper by 1, then they hit back.</li>
-        <li><strong>Temper:</strong> each enemy starts at 0 Temper. Partial attacks and emergency swaps raise Temper before retaliation, up to 3. Each Temper adds +1 to that enemy's attack. Temper resets when a new enemy appears.</li>
+        <li><strong>Temper:</strong> each enemy starts at 0 Temper. Partial attacks raise Temper before retaliation, up to 3. Each Temper adds +1 to that enemy's attack. Temper resets when a new enemy appears.</li>
         <li>Enemies 5, 10, and 15 are bosses. Enemy 16 is the final boss: -1 effective hand size, Crown Cracks damage applied, win prize on defeat, then you can keep playing endless mode.</li>
-        <li><strong>Regroup:</strong> swap exactly one selected card and take a half-strength hit. You get one Regroup charge for each five-encounter chapter; it recharges after defeating a boss. If the charge is spent and your hand has no valid attack at all, an Emergency Swap is allowed but raises Temper and takes a full-strength hit.</li>
+        <li><strong>Swap Bank / Regroup:</strong> start with 1 Swap token. Spend 1 to replace exactly one selected card and take a half-strength hit. Defeating an enemy with its weakness earns +1 Swap token, up to 9, so tokens can be saved for bosses.</li>
         <li><strong>Clear Selection</strong> deselects your current cards without spending a turn.</li>
         <li>After a non-lethal attack, replace every card played. Defeating an enemy fully refills your hand for the next encounter.</li>
-        <li><strong>Clean Victory:</strong> defeat with 0-3 excess damage to gain +2 gold. Before the final boss, each Clean Victory also removes 2 HP from its crown, capped at 12 HP total. Boss Clean Victories also heal 1 HP.</li>
+        <li><strong>Victory bonuses:</strong> 0-3 excess damage is a Clean Victory worth +2 gold; before the final boss it also cracks 2 crown HP, capped at 12, and boss Clean Victories heal 1 HP. A Big Overkill of 4+ excess damage earns +1 gold and raises a normal monster's equipment chance from 15% to 30%. Weakness Finishes also earn a Swap token.</li>
         <li>Each run has a seed in the page URL. Restart the same seed to replay identical cards, enemies, and rewards, or start a new seed for a fresh run.</li>
-        <li>Equipment slots start with basic no-bonus gear. Normal monsters have a 15% chance to drop equipment; boss shops remain guaranteed. New gear is labelled as a clear upgrade, clear downgrade, or trade-off against the equipped item before you choose.</li>
+        <li>Equipment slots start with basic no-bonus gear. Normal monsters have a 15% base equipment chance; boss shops are guaranteed. New gear is labelled as a clear upgrade, clear downgrade, or trade-off. The Bigger Backpack has its own 🎒 card and clearly shows Hand +1.</li>
+        <li><strong>Shop:</strong> buying an item marks only that card sold; the remaining shelf stays put. Rerolling the whole shelf costs 4 gold, then 6, 8, and so on during that shop visit.</li>
         <li>Deck editing rewards — adding or removing cards — are not in this build yet.</li>
       </ul>
       </details>

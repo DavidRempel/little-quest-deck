@@ -2,11 +2,17 @@
   'use strict';
 
   const config = Object.freeze({
-    buildVersion: 'v4.28-clear-gear',
+    buildVersion: 'v4.29-finisher-bank',
     startHandSize: 5,
     maxHandSize: 7,
     maxTemper: 3,
     cleanVictoryGold: 2,
+    overkillThreshold: 4,
+    overkillGold: 1,
+    overkillTreasureBonus: 0.15,
+    maxRegroupTokens: 9,
+    shopRerollStartCost: 4,
+    shopRerollCostStep: 2,
     finalBossBaseHp: 72,
     crownCrackHpPerClean: 2,
     crownCrackHpCap: 12,
@@ -82,18 +88,20 @@
   }
 
   function comboName(traits) {
-    return traits.map(trait => config.weaknessLabel[trait]).join(' + ');
+    return traits.length ? traits.map(trait => config.weaknessLabel[trait]).join(' + ') : 'Basic Hit';
   }
 
   function scoreCombo(cards, options = {}) {
     const traits = traitInfo(cards);
-    const valid = traits.length > 0;
-    const finalPenalty = !!options.finalBoss;
+    const valid = cards.length > 0;
+    const hasCombo = traits.length > 0;
+    const finalPenalty = !!options.finalBoss && hasCombo;
     const scoreCount = finalPenalty ? Math.max(1, cards.length - 1) : cards.length;
     const matchBase = traits.includes('match') ? matchChunkScore(cards, finalPenalty) : 0;
     const sequenceBase = traits.includes('sequence') ? familyScore('sequence', scoreCount) : 0;
     const flushBase = traits.includes('flush') ? familyScore('flush', scoreCount) : 0;
-    const baseBeforeWeakness = matchBase + sequenceBase + flushBase;
+    const basicBase = hasCombo ? 0 : cards.length;
+    const baseBeforeWeakness = basicBase + matchBase + sequenceBase + flushBase;
     const weaknessMultiplier = valid && traits.includes(options.weakness) ? 1.5 : 1;
     const weapon = options.weapon || {};
     const item = options.item || {};
@@ -106,6 +114,7 @@
       ? weaknessScore + weaponBonus + weaponAnyBonus + itemBonus
       : 0;
     const pieces = [];
+    if (basicBase) pieces.push(`basic ${cards.length} card${cards.length === 1 ? '' : 's'} = ${basicBase}`);
     if (matchBase) pieces.push(`match chunks ${matchBase}`);
     if (finalPenalty) pieces.push(`final boss curse: scores as ${scoreCount} card${scoreCount === 1 ? '' : 's'}`);
     if (sequenceBase) pieces.push(`sequence ${scoreCount} cards = ${sequenceBase}`);
@@ -117,12 +126,13 @@
     const enemyHp = options.enemyHp == null ? 99 : options.enemyHp;
 
     return {
-      mode: traits[0],
+      mode: traits[0] || 'basic',
       traits,
       valid,
       total,
       multiplier: weaknessMultiplier,
       breakdown: {
+        basic: basicBase,
         match: matchBase,
         sequence: sequenceBase,
         flush: flushBase,
